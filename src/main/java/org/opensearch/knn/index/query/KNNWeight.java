@@ -37,19 +37,20 @@ import org.opensearch.knn.index.engine.KNNEngine;
 import org.opensearch.knn.index.quantizationservice.QuantizationService;
 import org.opensearch.knn.index.query.ExactSearcher.ExactSearcherContext.ExactSearcherContextBuilder;
 import org.opensearch.knn.index.query.explain.KnnExplanation;
+import org.opensearch.knn.index.query.iterators.RangeBitSetIterator;
 import org.opensearch.knn.indices.ModelDao;
 import org.opensearch.knn.indices.ModelMetadata;
 import org.opensearch.knn.indices.ModelUtil;
 import org.opensearch.knn.plugin.stats.KNNCounter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.RecursiveTask;
 
-import static org.opensearch.knn.common.KNNConstants.KNN_ENGINE;
-import static org.opensearch.knn.common.KNNConstants.MODEL_ID;
-import static org.opensearch.knn.common.KNNConstants.SPACE_TYPE;
-import static org.opensearch.knn.common.KNNConstants.VECTOR_DATA_TYPE_FIELD;
+import static org.opensearch.knn.common.KNNConstants.*;
 
 /**
  * {@link KNNWeight} serves as a template for implementing approximate nearest neighbor (ANN)
@@ -318,8 +319,13 @@ public abstract class KNNWeight extends Weight {
          * This improves the recall.
          */
         if (isFilteredExactSearchPreferred(cardinality)) {
-            TopDocs result = doExactSearch(context, new BitSetIterator(filterBitSet, cardinality), cardinality, k);
-            return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
+            try {
+                TopDocs result = new ExactSearchTask(context, filterBitSet, k, 0, maxDoc).compute();
+                return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
+            }
+            catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
         }
 
         /*
@@ -338,9 +344,14 @@ public abstract class KNNWeight extends Weight {
         // This is required if there are no native engine files or if approximate search returned
         // results less than K, though we have more than k filtered docs
         if (isExactSearchRequire(context, cardinality, topDocs.scoreDocs.length)) {
-            final BitSetIterator docs = filterWeight != null ? new BitSetIterator(filterBitSet, cardinality) : null;
-            TopDocs result = doExactSearch(context, docs, cardinality, k);
-            return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
+            try {
+                final BitSet docs = filterWeight != null ? filterBitSet : null;
+                TopDocs result = new ExactSearchTask(context, docs, k, 0, maxDoc).compute();
+                return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
+            }
+            catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
         }
         return new PerLeafResult(filterWeight == null ? null : filterBitSet, topDocs);
     }
@@ -694,5 +705,61 @@ public abstract class KNNWeight extends Weight {
             docId = bitSetIterator.nextDoc();
         }
         return intArray;
+    }
+
+    private class ExactSearchTask extends RecursiveTask<TopDocs> {
+        private static final int THRESHOLD = 50_000;
+
+        private final LeafReaderContext ctx;
+        private final BitSet filterBitSet;
+        private final int k;
+        private final int minDoc;
+        private final int maxDoc;
+
+        public ExactSearchTask(LeafReaderContext ctx, BitSet filterBitSet, int k, int minDoc, int maxDoc) {
+            this.ctx = ctx;
+            this.filterBitSet = filterBitSet;
+            this.k = k;
+            this.minDoc = minDoc;
+            this.maxDoc = maxDoc;
+        }
+
+        protected TopDocs compute() {
+            try {
+                int docs = maxDoc - minDoc;
+                if (docs <= THRESHOLD) {
+                    final DocIdSetIterator docIterator = filterBitSet == null ? null : new RangeBitSetIterator(filterBitSet, maxDoc - minDoc, minDoc, maxDoc);
+                    final ExactSearcherContextBuilder exactSearcherContextBuilder = ExactSearcher.ExactSearcherContext.builder()
+                            .parentsFilter(knnQuery.getParentsFilter())
+                            .k(k)
+                            // setting to true, so that if quantization details are present we want to do search on the quantized
+                            // vectors as this flow is used in first pass of search.
+                            .useQuantizedVectorsForSearch(true)
+                            .field(knnQuery.getField())
+                            .radius(knnQuery.getRadius())
+                            .matchedDocsIterator(docIterator)
+                            .numberOfMatchedDocs(maxDoc - minDoc)
+                            .floatQueryVector(knnQuery.getQueryVector())
+                            .byteQueryVector(knnQuery.getByteQueryVector())
+                            .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch());
+                    if (knnQuery.getContext() != null) {
+                        exactSearcherContextBuilder.maxResultWindow(knnQuery.getContext().getMaxResultWindow());
+                    }
+                    return exactSearch(ctx, exactSearcherContextBuilder.build());
+                }
+                else {
+                    int mid = minDoc + docs/2;
+                    ExactSearchTask left = new ExactSearchTask(ctx, filterBitSet, k, minDoc, mid);
+                    ExactSearchTask right = new ExactSearchTask(ctx, filterBitSet, k, mid, maxDoc);
+                    invokeAll(left, right);
+                    TopDocs leftResult = left.join();
+                    TopDocs rightResult = right.join();
+                    return TopDocs.merge(k, new TopDocs[]{leftResult, rightResult});
+                }
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 }
