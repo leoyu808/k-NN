@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.RecursiveTask;
 
 import static org.opensearch.knn.common.KNNConstants.*;
@@ -320,10 +319,10 @@ public abstract class KNNWeight extends Weight {
          */
         if (isFilteredExactSearchPreferred(cardinality)) {
             try {
-                TopDocs result = new ExactSearchTask(context, filterBitSet, k, 0, maxDoc).compute();
+                ExactSearchTask exactSearchTask = new ExactSearchTask(context, cardinality, filterBitSet, k, 0, maxDoc, false);
+                TopDocs result = exactSearchTask.invoke();
                 return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
-            }
-            catch (UncheckedIOException e) {
+            } catch (UncheckedIOException e) {
                 throw e.getCause();
             }
         }
@@ -345,11 +344,10 @@ public abstract class KNNWeight extends Weight {
         // results less than K, though we have more than k filtered docs
         if (isExactSearchRequire(context, cardinality, topDocs.scoreDocs.length)) {
             try {
-                final BitSet docs = filterWeight != null ? filterBitSet : null;
-                TopDocs result = new ExactSearchTask(context, docs, k, 0, maxDoc).compute();
+                ExactSearchTask exactSearchTask = new ExactSearchTask(context, cardinality, filterBitSet, k, 0, maxDoc, true);
+                TopDocs result = exactSearchTask.invoke();
                 return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
-            }
-            catch (UncheckedIOException e) {
+            } catch (UncheckedIOException e) {
                 throw e.getCause();
             }
         }
@@ -708,56 +706,68 @@ public abstract class KNNWeight extends Weight {
     }
 
     private class ExactSearchTask extends RecursiveTask<TopDocs> {
-        private static final int THRESHOLD = 50_000;
+        private static final int THRESHOLD = 10_000;
 
         private final LeafReaderContext ctx;
+        private final int cardinality;
         private final BitSet filterBitSet;
         private final int k;
         private final int minDoc;
         private final int maxDoc;
+        private final boolean afterANN;
 
-        public ExactSearchTask(LeafReaderContext ctx, BitSet filterBitSet, int k, int minDoc, int maxDoc) {
+        public ExactSearchTask(
+            LeafReaderContext ctx,
+            int cardinality,
+            BitSet filterBitSet,
+            int k,
+            int minDoc,
+            int maxDoc,
+            boolean afterANN
+        ) {
             this.ctx = ctx;
+            this.cardinality = cardinality;
             this.filterBitSet = filterBitSet;
             this.k = k;
             this.minDoc = minDoc;
             this.maxDoc = maxDoc;
+            this.afterANN = afterANN;
         }
 
         protected TopDocs compute() {
             try {
                 int docs = maxDoc - minDoc;
                 if (docs <= THRESHOLD) {
-                    final DocIdSetIterator docIterator = filterBitSet == null ? null : new RangeBitSetIterator(filterBitSet, maxDoc - minDoc, minDoc, maxDoc);
+                    final DocIdSetIterator docIterator = (afterANN && filterWeight == null)
+                        ? null
+                        : new RangeBitSetIterator(filterBitSet, cardinality, minDoc, maxDoc);
                     final ExactSearcherContextBuilder exactSearcherContextBuilder = ExactSearcher.ExactSearcherContext.builder()
-                            .parentsFilter(knnQuery.getParentsFilter())
-                            .k(k)
-                            // setting to true, so that if quantization details are present we want to do search on the quantized
-                            // vectors as this flow is used in first pass of search.
-                            .useQuantizedVectorsForSearch(true)
-                            .field(knnQuery.getField())
-                            .radius(knnQuery.getRadius())
-                            .matchedDocsIterator(docIterator)
-                            .numberOfMatchedDocs(maxDoc - minDoc)
-                            .floatQueryVector(knnQuery.getQueryVector())
-                            .byteQueryVector(knnQuery.getByteQueryVector())
-                            .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch());
+                        .parentsFilter(knnQuery.getParentsFilter())
+                        .k(k)
+                        // setting to true, so that if quantization details are present we want to do search on the quantized
+                        // vectors as this flow is used in first pass of search.
+                        .useQuantizedVectorsForSearch(true)
+                        .field(knnQuery.getField())
+                        .radius(knnQuery.getRadius())
+                        .matchedDocsIterator(docIterator)
+                        .numberOfMatchedDocs(cardinality)
+                        .floatQueryVector(knnQuery.getQueryVector())
+                        .byteQueryVector(knnQuery.getByteQueryVector())
+                        .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch());
                     if (knnQuery.getContext() != null) {
                         exactSearcherContextBuilder.maxResultWindow(knnQuery.getContext().getMaxResultWindow());
                     }
                     return exactSearch(ctx, exactSearcherContextBuilder.build());
-                }
-                else {
-                    int mid = minDoc + docs/2;
-                    ExactSearchTask left = new ExactSearchTask(ctx, filterBitSet, k, minDoc, mid);
-                    ExactSearchTask right = new ExactSearchTask(ctx, filterBitSet, k, mid, maxDoc);
+                } else {
+                    int mid = minDoc + docs / 2;
+                    ExactSearchTask left = new ExactSearchTask(ctx, cardinality, filterBitSet, k, minDoc, mid, afterANN);
+                    ExactSearchTask right = new ExactSearchTask(ctx, cardinality, filterBitSet, k, mid, maxDoc, afterANN);
                     invokeAll(left, right);
                     TopDocs leftResult = left.join();
                     TopDocs rightResult = right.join();
-                    return TopDocs.merge(k, new TopDocs[]{leftResult, rightResult});
+                    return TopDocs.merge(k, new TopDocs[] { leftResult, rightResult });
                 }
-            }
-            catch (IOException e) {
+            } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
