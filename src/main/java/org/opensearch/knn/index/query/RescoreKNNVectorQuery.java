@@ -19,6 +19,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BitSet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StopWatch;
 import org.opensearch.knn.index.query.common.QueryUtils;
@@ -87,25 +88,27 @@ public class RescoreKNNVectorQuery extends Query {
         List<LeafReaderContext> leafReaderContexts = indexSearcher.getIndexReader().leaves();
         List<Callable<TopDocs>> rescoreTasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            rescoreTasks.add(() -> searchLeaf(exactSearcher, weight, k, leafReaderContext));
+            rescoreTasks.add(() -> searchLeaf(indexSearcher, exactSearcher, weight, k, leafReaderContext));
         }
         return indexSearcher.getTaskExecutor().invokeAll(rescoreTasks).toArray(TopDocs[]::new);
     }
 
-    private TopDocs searchLeaf(ExactSearcher searcher, Weight weight, int k, LeafReaderContext leafReaderContext) throws IOException {
+    private TopDocs searchLeaf(IndexSearcher indexSearcher, ExactSearcher searcher, Weight weight, int k, LeafReaderContext leafReaderContext) throws IOException {
         Scorer scorer = weight.scorer(leafReaderContext);
         if (scorer == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
         DocIdSetIterator iterator = scorer.iterator();
+        BitSet matchedDocs = BitSet.of(iterator, leafReaderContext.reader().maxDoc());
         final ExactSearcher.ExactSearcherContext exactSearcherContext = ExactSearcher.ExactSearcherContext.builder()
-            .matchedDocsIterator(iterator)
+            .filterBitSet(matchedDocs)
             .numberOfMatchedDocs(iterator.cost())
             // setting to false because in re-scoring we want to do exact search on full precision vectors
             .useQuantizedVectorsForSearch(false)
             .k(k)
             .field(field)
             .floatQueryVector(queryVector)
+            .taskExecutor(indexSearcher.getTaskExecutor())
             .build();
         TopDocs results = searcher.searchLeaf(leafReaderContext, exactSearcherContext);
         if (leafReaderContext.docBase > 0) {

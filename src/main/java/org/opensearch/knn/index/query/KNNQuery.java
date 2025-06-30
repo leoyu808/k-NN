@@ -197,7 +197,7 @@ public class KNNQuery extends Query {
         }
 
         // Using native library to perform search on index.
-        return new DefaultKNNWeight(this, boost, filterWeight);
+        return new DefaultKNNWeight(this, boost, filterWeight, searcher);
     }
 
     private Weight getFilterWeight(IndexSearcher searcher) throws IOException {

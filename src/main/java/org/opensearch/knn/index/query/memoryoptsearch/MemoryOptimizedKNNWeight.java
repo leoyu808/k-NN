@@ -39,8 +39,7 @@ import static org.opensearch.knn.plugin.stats.KNNCounter.GRAPH_QUERY_ERRORS;
 public class MemoryOptimizedKNNWeight extends KNNWeight {
     private final KnnCollectorManager knnCollectorManager;
 
-    public MemoryOptimizedKNNWeight(KNNQuery query, float boost, final Weight filterWeight, IndexSearcher searcher, int k) {
-        super(query, boost, filterWeight);
+    public MemoryOptimizedKNNWeight(KNNQuery query, float boost, final Weight filterWeight, IndexSearcher searcher, int k) {super(query, boost, filterWeight, searcher);
 
         if (k > 0) {
             // ANN Search

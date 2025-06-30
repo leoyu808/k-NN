@@ -9,6 +9,7 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.opensearch.knn.index.SpaceType;
@@ -39,8 +40,8 @@ import static org.opensearch.knn.plugin.stats.KNNCounter.GRAPH_QUERY_ERRORS;
 public class DefaultKNNWeight extends KNNWeight {
     private final NativeMemoryCacheManager nativeMemoryCacheManager;
 
-    public DefaultKNNWeight(KNNQuery query, float boost, Weight filterWeight) {
-        super(query, boost, filterWeight);
+    public DefaultKNNWeight(KNNQuery query, float boost, Weight filterWeight, IndexSearcher indexSearcher) {
+        super(query, boost, filterWeight, indexSearcher);
         this.nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
     }
 
