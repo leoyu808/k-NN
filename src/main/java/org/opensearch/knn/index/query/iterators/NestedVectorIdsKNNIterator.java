@@ -27,18 +27,22 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
         final float[] queryVector,
         final KNNFloatVectorValues knnFloatVectorValues,
         final SpaceType spaceType,
-        final BitSet parentBitSet
+        final BitSet parentBitSet,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
-        this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
+        this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null, minDocId, maxDocId);
     }
 
     public NestedVectorIdsKNNIterator(
         final float[] queryVector,
         final KNNFloatVectorValues knnFloatVectorValues,
         final SpaceType spaceType,
-        final BitSet parentBitSet
+        final BitSet parentBitSet,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
-        this(null, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
+        this(null, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null, minDocId, maxDocId);
     }
 
     public NestedVectorIdsKNNIterator(
@@ -48,9 +52,11 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
         final SpaceType spaceType,
         final BitSet parentBitSet,
         final byte[] quantizedVector,
-        final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
+        final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
-        super(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, quantizedVector, segmentLevelQuantizationInfo);
+        super(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, quantizedVector, segmentLevelQuantizationInfo, minDocId, maxDocId);
         this.parentBitSet = parentBitSet;
     }
 

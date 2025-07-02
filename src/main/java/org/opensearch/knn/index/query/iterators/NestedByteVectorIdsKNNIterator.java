@@ -26,9 +26,11 @@ public class NestedByteVectorIdsKNNIterator extends ByteVectorIdsKNNIterator {
         final float[] queryVector,
         final KNNByteVectorValues byteVectorValues,
         final SpaceType spaceType,
-        final BitSet parentBitSet
+        final BitSet parentBitSet,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
-        super(filterIdsIterator, queryVector, byteVectorValues, spaceType);
+        super(filterIdsIterator, queryVector, byteVectorValues, spaceType, minDocId, maxDocId);
         this.parentBitSet = parentBitSet;
     }
 
@@ -36,9 +38,11 @@ public class NestedByteVectorIdsKNNIterator extends ByteVectorIdsKNNIterator {
         final float[] queryVector,
         final KNNByteVectorValues binaryVectorValues,
         final SpaceType spaceType,
-        final BitSet parentBitSet
+        final BitSet parentBitSet,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
-        super(null, queryVector, binaryVectorValues, spaceType);
+        super(null, queryVector, binaryVectorValues, spaceType, minDocId, maxDocId);
         this.parentBitSet = parentBitSet;
     }
 

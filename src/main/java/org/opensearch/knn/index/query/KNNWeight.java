@@ -292,7 +292,7 @@ public abstract class KNNWeight extends Weight {
 
         StopWatch stopWatch = startStopWatch();
         final BitSet filterBitSet = getFilteredDocsBitSet(context);
-        stopStopWatchAndLog(stopWatch, "FilterBitSet creation", segmentName);
+        // stopStopWatchAndLog(stopWatch, "FilterBitSet creation", segmentName);
 
         final int maxDoc = context.reader().maxDoc();
         int cardinality = filterBitSet.cardinality();
@@ -324,19 +324,16 @@ public abstract class KNNWeight extends Weight {
 
         StopWatch annStopWatch = startStopWatch();
         final TopDocs topDocs = approximateSearch(context, annFilter, cardinality, k);
-        stopStopWatchAndLog(annStopWatch, "ANN search", segmentName);
+        // stopStopWatchAndLog(annStopWatch, "ANN search", segmentName);
         if (knnQuery.isExplain()) {
             knnExplanation.addLeafResult(context.id(), topDocs.scoreDocs.length);
         }
         // See whether we have to perform exact search based on approx search results
         // This is required if there are no native engine files or if approximate search returned
         // results less than K, though we have more than k filtered docs
-        if (isExactSearchRequire(context, cardinality, topDocs.scoreDocs.length)) {
-            final BitSet docs = filterWeight != null ? filterBitSet : null;
-            TopDocs result = doExactSearch(context, docs, cardinality, k, indexSearcher.getTaskExecutor());
-            return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
-        }
-        return new PerLeafResult(filterWeight == null ? null : filterBitSet, topDocs);
+        final BitSet docs = filterWeight != null ? filterBitSet : null;
+        TopDocs result = doExactSearch(context, docs, cardinality, k, indexSearcher.getTaskExecutor());
+        return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
     }
 
     private void stopStopWatchAndLog(@Nullable final StopWatch stopWatch, final String prefixMessage, String segmentName) {

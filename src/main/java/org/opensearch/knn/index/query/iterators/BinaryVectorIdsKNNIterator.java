@@ -25,25 +25,43 @@ public class BinaryVectorIdsKNNIterator implements KNNIterator {
     protected final SpaceType spaceType;
     protected float currentScore = Float.NEGATIVE_INFINITY;
     protected int docId;
+    protected int minDocId;
+    protected int maxDocId;
 
     public BinaryVectorIdsKNNIterator(
         @Nullable final DocIdSetIterator docIdSetIterator,
         final byte[] queryVector,
         final KNNBinaryVectorValues binaryVectorValues,
-        final SpaceType spaceType
+        final SpaceType spaceType,
+        int minDocId,
+        int maxDocId
     ) throws IOException {
         this.docIdSetIterator = docIdSetIterator;
         this.queryVector = queryVector;
         this.binaryVectorValues = binaryVectorValues;
         this.spaceType = spaceType;
-        // This cannot be moved inside nextDoc() method since it will break when we have nested field, where
-        // nextDoc should already be referring to next knnVectorValues
-        this.docId = getNextDocId();
+        this.minDocId = minDocId;
+        this.maxDocId = maxDocId;
+        int firstDoc;
+        if (docIdSetIterator != null) {
+            firstDoc = docIdSetIterator.advance(minDocId);
+            if (firstDoc != DocIdSetIterator.NO_MORE_DOCS) {
+                binaryVectorValues.advance(firstDoc);
+            }
+        } else {
+            firstDoc = binaryVectorValues.advance(minDocId);
+        }
+
+        if (firstDoc >= maxDocId) {
+            this.docId = DocIdSetIterator.NO_MORE_DOCS;
+        } else {
+            this.docId = firstDoc;
+        }
     }
 
-    public BinaryVectorIdsKNNIterator(final byte[] queryVector, final KNNBinaryVectorValues binaryVectorValues, final SpaceType spaceType)
+    public BinaryVectorIdsKNNIterator(final byte[] queryVector, final KNNBinaryVectorValues binaryVectorValues, final SpaceType spaceType, final int minDocId, final int maxDocId)
         throws IOException {
-        this(null, queryVector, binaryVectorValues, spaceType);
+        this(null, queryVector, binaryVectorValues, spaceType, minDocId, maxDocId);
     }
 
     /**
@@ -54,13 +72,15 @@ public class BinaryVectorIdsKNNIterator implements KNNIterator {
      */
     @Override
     public int nextDoc() throws IOException {
-
         if (docId == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
         currentScore = computeScore();
         int currentDocId = docId;
         docId = getNextDocId();
+        if (docId >= maxDocId) {
+            docId = DocIdSetIterator.NO_MORE_DOCS;
+        }
         return currentDocId;
     }
 

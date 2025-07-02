@@ -27,6 +27,8 @@ public class VectorIdsKNNIterator implements KNNIterator {
     protected final KNNFloatVectorValues knnFloatVectorValues;
     protected final SpaceType spaceType;
     protected float currentScore = Float.NEGATIVE_INFINITY;
+    protected int minDocId;
+    protected int maxDocId;
     protected int docId;
     private final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo;
 
@@ -34,14 +36,16 @@ public class VectorIdsKNNIterator implements KNNIterator {
         @Nullable final DocIdSetIterator filterIdsIterator,
         final float[] queryVector,
         final KNNFloatVectorValues knnFloatVectorValues,
-        final SpaceType spaceType
+        final SpaceType spaceType,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
-        this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, null, null);
+        this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, null, null,  minDocId, maxDocId);
     }
 
-    public VectorIdsKNNIterator(final float[] queryVector, final KNNFloatVectorValues knnFloatVectorValues, final SpaceType spaceType)
+    public VectorIdsKNNIterator(final float[] queryVector, final KNNFloatVectorValues knnFloatVectorValues, final SpaceType spaceType, final int minDocId, final int maxDocId)
         throws IOException {
-        this(null, queryVector, knnFloatVectorValues, spaceType, null, null);
+        this(null, queryVector, knnFloatVectorValues, spaceType, null, null, minDocId, maxDocId);
     }
 
     public VectorIdsKNNIterator(
@@ -50,15 +54,33 @@ public class VectorIdsKNNIterator implements KNNIterator {
         final KNNFloatVectorValues knnFloatVectorValues,
         final SpaceType spaceType,
         final byte[] quantizedQueryVector,
-        final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
+        final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo,
+        final int minDocId,
+        final int maxDocId
     ) throws IOException {
         this.filterIdsIterator = filterIdsIterator;
         this.queryVector = queryVector;
         this.knnFloatVectorValues = knnFloatVectorValues;
         this.spaceType = spaceType;
+        this.minDocId = minDocId;
+        this.maxDocId = maxDocId;
         // This cannot be moved inside nextDoc() method since it will break when we have nested field, where
         // nextDoc should already be referring to next knnVectorValues
-        this.docId = getNextDocId();
+        int firstDoc;
+        if (filterIdsIterator != null) {
+            firstDoc = filterIdsIterator.advance(minDocId);
+            if (firstDoc != DocIdSetIterator.NO_MORE_DOCS) {
+                knnFloatVectorValues.advance(firstDoc);
+            }
+        } else {
+            firstDoc = knnFloatVectorValues.advance(minDocId);
+        }
+        if (firstDoc >= maxDocId) {
+            this.docId = DocIdSetIterator.NO_MORE_DOCS;
+        } else {
+            this.docId = firstDoc;
+        }
+
         this.quantizedQueryVector = quantizedQueryVector;
         this.segmentLevelQuantizationInfo = segmentLevelQuantizationInfo;
     }
@@ -71,13 +93,15 @@ public class VectorIdsKNNIterator implements KNNIterator {
      */
     @Override
     public int nextDoc() throws IOException {
-
         if (docId == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
         currentScore = computeScore();
         int currentDocId = docId;
         docId = getNextDocId();
+        if (docId >= maxDocId) {
+            docId = DocIdSetIterator.NO_MORE_DOCS;
+        }
         return currentDocId;
     }
 
