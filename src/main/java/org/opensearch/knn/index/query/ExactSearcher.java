@@ -99,9 +99,8 @@ public class ExactSearcher {
     }
 
     private TopDocs scoreAllDocs(LeafReaderContext leafReaderContext, ExactSearcherContext context) throws IOException {
-        int maxDoc = leafReaderContext.reader().maxDoc();
         BitSet filterBitSet = context.getFilterBitSet();
-        RangeBitSetIterator matchedDocs = filterBitSet != null ? new RangeBitSetIterator(filterBitSet, maxDoc, 0, maxDoc) : null;
+        BitSetIterator matchedDocs = filterBitSet != null ? new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()) : null;
         KNNIterator iterator = getKNNIterator(leafReaderContext, context, matchedDocs);
         if (iterator == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
@@ -116,7 +115,7 @@ public class ExactSearcher {
     }
 
     private TopDocs searchTopCandidates(LeafReaderContext leafReaderContext, ExactSearcherContext context, int limit, @NonNull Predicate<Float> filterScore) throws IOException {
-        long THRESHOLD = 10_000;
+        long THRESHOLD = 250_000;
         int partitions = Math.toIntExact(context.getNumberOfMatchedDocs() / THRESHOLD + 1);
         List<Callable<TopDocs>> scoreTasks = new ArrayList<>(partitions);
         int maxDoc = leafReaderContext.reader().maxDoc();
@@ -129,7 +128,14 @@ public class ExactSearcher {
             int minDocId = offset;
             int maxDocId = offset + size;
             scoreTasks.add(() -> {
-                RangeBitSetIterator matchedDocs = filterBitSet != null ? new RangeBitSetIterator(filterBitSet, maxDocId - minDocId, minDocId, maxDocId) : null;
+                DocIdSetIterator matchedDocs;
+                if (filterBitSet != null) {
+                    BitSetIterator docs = new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs());
+                    matchedDocs = new RangeDocIdSetIterator(docs, minDocId, maxDocId);
+                }
+                else {
+                    matchedDocs = DocIdSetIterator.range(minDocId, maxDocId);
+                }
                 KNNIterator iterator = getKNNIterator(leafReaderContext, context, matchedDocs);
                 if (iterator == null) {
                     return TopDocsCollector.EMPTY_TOPDOCS;
