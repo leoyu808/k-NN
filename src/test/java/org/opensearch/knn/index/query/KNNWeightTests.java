@@ -294,7 +294,7 @@ public class KNNWeightTests extends KNNWeightTestCase {
 
         final KNNQuery query = new KNNQuery(FIELD_NAME, QUERY_VECTOR, K, INDEX_NAME, null);
         final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, 0.0f, null,  mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, 0.0f, null, mockedIndexSearcher);
 
         final LeafReaderContext leafReaderContext = mock(LeafReaderContext.class);
         final SegmentReader reader = mock(SegmentReader.class);

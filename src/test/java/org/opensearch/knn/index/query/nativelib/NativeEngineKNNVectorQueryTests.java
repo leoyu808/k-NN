@@ -31,7 +31,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.knn.index.KNNSettings;
-import org.opensearch.knn.index.query.ExactSearcher;
 import org.opensearch.knn.index.query.KNNQuery;
 import org.opensearch.knn.index.query.KNNWeight;
 import org.opensearch.knn.index.query.PerLeafResult;
@@ -525,13 +524,13 @@ public class NativeEngineKNNVectorQueryTests extends OpenSearchTestCase {
         }
 
         // Verify acceptedDocIds is intersection of allSiblings and filteredDocIds
-//        ArgumentCaptor<ExactSearcher.ExactSearcherContext> contextCaptor = ArgumentCaptor.forClass(
-//            ExactSearcher.ExactSearcherContext.class
-//        );
-//        verify(knnWeight, times(perLeafResults.size())).exactSearch(any(), contextCaptor.capture());
-//        assertEquals(1, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
-//        assertEquals(2, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
-//        assertEquals(DocIdSetIterator.NO_MORE_DOCS, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
+        // ArgumentCaptor<ExactSearcher.ExactSearcherContext> contextCaptor = ArgumentCaptor.forClass(
+        // ExactSearcher.ExactSearcherContext.class
+        // );
+        // verify(knnWeight, times(perLeafResults.size())).exactSearch(any(), contextCaptor.capture());
+        // assertEquals(1, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
+        // assertEquals(2, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
+        // assertEquals(DocIdSetIterator.NO_MORE_DOCS, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
     }
 
     private IndexReader createTestIndexReader() throws IOException {

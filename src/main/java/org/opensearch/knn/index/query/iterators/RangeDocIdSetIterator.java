@@ -17,15 +17,16 @@ public class RangeDocIdSetIterator extends DocIdSetIterator {
 
     public RangeDocIdSetIterator(DocIdSetIterator inner, int minDoc, int maxDoc) {
         if (minDoc < 0 || maxDoc <= minDoc) {
-            throw new IllegalArgumentException(
-                    "Invalid range: [" + minDoc + "," + maxDoc + ")");
+            throw new IllegalArgumentException("Invalid range: [" + minDoc + "," + maxDoc + ")");
         }
         _innerIter = inner;
         this.minDoc = minDoc;
         this.maxDoc = maxDoc;
     }
 
-    public int docID() { return doc; }
+    public int docID() {
+        return doc;
+    }
 
     public long cost() {
         return _innerIter.cost();
@@ -36,7 +37,7 @@ public class RangeDocIdSetIterator extends DocIdSetIterator {
         if (doc < minDoc) {
             return advance(minDoc);
         }
-        return advance(doc+1);
+        return advance(doc + 1);
     }
 
     @Override
