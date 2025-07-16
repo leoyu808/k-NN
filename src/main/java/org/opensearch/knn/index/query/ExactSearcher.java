@@ -33,11 +33,13 @@ import org.opensearch.knn.index.vectorvalues.KNNVectorValuesFactory;
 import org.opensearch.knn.indices.ModelDao;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
+import java.util.concurrent.RecursiveTask;
 import java.util.function.Predicate;
 
 @Log4j2
@@ -119,22 +121,12 @@ public class ExactSearcher {
         int limit,
         @NonNull Predicate<Float> filterScore
     ) throws IOException {
-        long THRESHOLD = 250_000;
-        int partitions = Math.toIntExact(context.getNumberOfMatchedDocs() / THRESHOLD + 1);
-        List<Callable<TopDocs>> scoreTasks = new ArrayList<>(partitions);
-        int maxDoc = leafReaderContext.reader().maxDoc();
-        int partitionSize = maxDoc / partitions;
-        int remainder = maxDoc % partitions;
-        int offset = 0;
-        for (int i = 0; i < partitions; i++) {
-            int size = partitionSize + (i < remainder ? 1 : 0);
-            int minDocId = offset;
-            int maxDocId = offset + size;
-            scoreTasks.add(() -> searchTopCandidates(leafReaderContext, context, limit, filterScore, minDocId, maxDocId));
-            offset += size;
+        try {
+            return new ExactSearchTask(leafReaderContext, context, limit, filterScore, 0, leafReaderContext.reader().maxDoc()).compute();
         }
-        List<TopDocs> results = context.getTaskExecutor().invokeAll(scoreTasks);
-        return TopDocs.merge(limit, results.toArray(new TopDocs[partitions]));
+        catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
     }
 
     private TopDocs searchTopCandidates(
@@ -312,5 +304,43 @@ public class ExactSearcher {
         VectorSimilarityFunction similarityFunction;
         Boolean isMemoryOptimizedSearchEnabled;
         TaskExecutor taskExecutor;
+    }
+
+    public class ExactSearchTask extends RecursiveTask<TopDocs> {
+        final LeafReaderContext leafReaderContext;
+        final ExactSearcher.ExactSearcherContext context;
+        final int limit;
+        final Predicate<Float> filterScore;
+        final int THRESHOLD = 250_000;
+        final int minDocId;
+        final int maxDocId;
+
+        public ExactSearchTask(LeafReaderContext leafReaderContext, ExactSearcher.ExactSearcherContext context, int limit, @NonNull Predicate<Float> filterScore, int minDocId, int maxDocId) {
+            this.leafReaderContext = leafReaderContext;
+            this.context = context;
+            this.limit = limit;
+            this.filterScore = filterScore;
+            this.minDocId = minDocId;
+            this.maxDocId = maxDocId;
+        }
+
+        @Override
+        protected TopDocs compute() {
+            if (maxDocId - minDocId < THRESHOLD) {
+                try {
+                    return searchTopCandidates(leafReaderContext, context, limit, filterScore, minDocId, maxDocId);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            else {
+                int mid =  minDocId + (maxDocId - minDocId) / 2;
+                ExactSearchTask left = new ExactSearchTask(leafReaderContext, context, limit, filterScore, minDocId, mid);
+                ExactSearchTask right = new ExactSearchTask(leafReaderContext, context, limit, filterScore, mid, maxDocId);
+                left.fork();
+                right.fork();
+                return TopDocs.merge(context.getK(), new TopDocs[] {left.join(), right.join()});
+            }
+        }
     }
 }
