@@ -11,6 +11,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
@@ -19,6 +20,7 @@ import java.io.IOException;
  */
 public class KNN80DocValuesFormat extends DocValuesFormat {
     private final DocValuesFormat delegate;
+    private final MapperService mapperService;
 
     public KNN80DocValuesFormat() {
         this(new Lucene80DocValuesFormat());
@@ -32,6 +34,13 @@ public class KNN80DocValuesFormat extends DocValuesFormat {
     public KNN80DocValuesFormat(DocValuesFormat delegate) {
         super(delegate.getName());
         this.delegate = delegate;
+        this.mapperService = null;
+    }
+
+    public KNN80DocValuesFormat(DocValuesFormat delegate, MapperService mapperService) {
+        super(delegate.getName());
+        this.delegate = delegate;
+        this.mapperService = mapperService;
     }
 
     @Override
@@ -41,6 +50,6 @@ public class KNN80DocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new KNN80DocValuesProducer(delegate.fieldsProducer(state), state);
+        return new KNN80DocValuesProducer(delegate.fieldsProducer(state), state, mapperService);
     }
 }

@@ -17,6 +17,7 @@ import org.apache.lucene.index.*;
 
 import java.io.IOException;
 
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.knn.index.codec.util.KNNCodecUtil;
 import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
 import org.opensearch.knn.index.memory.NativeMemoryCacheManager;
@@ -28,10 +29,12 @@ import java.util.List;
 public class KNN80DocValuesProducer extends DocValuesProducer {
     private final DocValuesProducer delegate;
     private List<String> cacheKeys;
+    private final MapperService mapperService;
 
-    public KNN80DocValuesProducer(DocValuesProducer delegate, SegmentReadState state) {
+    public KNN80DocValuesProducer(DocValuesProducer delegate, SegmentReadState state, MapperService mapperService) {
         this.delegate = delegate;
         this.cacheKeys = getVectorCacheKeysFromSegmentReaderState(state);
+        this.mapperService = mapperService;
     }
 
     @Override
