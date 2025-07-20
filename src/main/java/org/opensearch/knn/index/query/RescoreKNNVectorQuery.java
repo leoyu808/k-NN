@@ -114,7 +114,6 @@ public class RescoreKNNVectorQuery extends Query {
             .k(k)
             .field(field)
             .floatQueryVector(queryVector)
-            .taskExecutor(indexSearcher.getTaskExecutor())
             .build();
         TopDocs results = searcher.searchLeaf(leafReaderContext, exactSearcherContext);
         if (leafReaderContext.docBase > 0) {

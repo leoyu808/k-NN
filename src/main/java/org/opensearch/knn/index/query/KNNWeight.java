@@ -38,10 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.opensearch.knn.common.KNNConstants.KNN_ENGINE;
-import static org.opensearch.knn.common.KNNConstants.MODEL_ID;
-import static org.opensearch.knn.common.KNNConstants.SPACE_TYPE;
-import static org.opensearch.knn.common.KNNConstants.VECTOR_DATA_TYPE_FIELD;
+import static org.opensearch.knn.common.KNNConstants.*;
 
 /**
  * {@link KNNWeight} serves as a template for implementing approximate nearest neighbor (ANN)
@@ -331,9 +328,12 @@ public abstract class KNNWeight extends Weight {
         // See whether we have to perform exact search based on approx search results
         // This is required if there are no native engine files or if approximate search returned
         // results less than K, though we have more than k filtered docs
-        final BitSet docs = filterWeight != null ? filterBitSet : null;
-        TopDocs result = doExactSearch(context, docs, cardinality, k, indexSearcher.getTaskExecutor());
-        return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
+        if (isExactSearchRequire(context, cardinality, topDocs.scoreDocs.length)) {
+            final BitSet docs = filterWeight != null ? filterBitSet : null;
+            TopDocs result = doExactSearch(context, docs, cardinality, k, indexSearcher.getTaskExecutor());
+            return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
+        }
+        return new PerLeafResult(filterWeight == null ? null : filterBitSet, topDocs);
     }
 
     private void stopStopWatchAndLog(@Nullable final StopWatch stopWatch, final String prefixMessage, String segmentName) {
@@ -394,8 +394,7 @@ public abstract class KNNWeight extends Weight {
             .numberOfMatchedDocs(numberOfAcceptedDocs)
             .floatQueryVector(knnQuery.getQueryVector())
             .byteQueryVector(knnQuery.getByteQueryVector())
-            .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch())
-            .taskExecutor(taskExecutor);
+            .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch());
 
         if (knnQuery.getContext() != null) {
             exactSearcherContextBuilder.maxResultWindow(knnQuery.getContext().getMaxResultWindow());
