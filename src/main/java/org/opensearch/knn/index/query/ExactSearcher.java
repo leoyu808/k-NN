@@ -102,8 +102,8 @@ public class ExactSearcher {
         // max distance is already converted min score then saved in `radius`. Thus, we don't need a score translation which does not make
         // sense as it is treating min score as a max distance otherwise.
         final float minScore = context.isMemoryOptimizedSearchEnabled
-                ? context.getRadius()
-                : spaceType.scoreTranslation(context.getRadius());
+            ? context.getRadius()
+            : spaceType.scoreTranslation(context.getRadius());
         return filterDocsByMinScore(leafReaderContext, context, minScore);
     }
 
@@ -124,32 +124,33 @@ public class ExactSearcher {
     }
 
     private TopDocs partitionLeaf(
-            LeafReaderContext leafReaderContext,
-            ExactSearcherContext context,
-            int limit,
-            @NonNull Predicate<Float> filterScore
+        LeafReaderContext leafReaderContext,
+        ExactSearcherContext context,
+        int limit,
+        @NonNull Predicate<Float> filterScore
     ) throws IOException {
         try {
-            return ExactSearcher.pool.invoke(new ExactSearchTask(leafReaderContext, context, limit, filterScore, 0, leafReaderContext.reader().maxDoc()));
-        }
-        catch (UncheckedIOException e) {
+            return ExactSearcher.pool.invoke(
+                new ExactSearchTask(leafReaderContext, context, limit, filterScore, 0, leafReaderContext.reader().maxDoc())
+            );
+        } catch (UncheckedIOException e) {
             throw e.getCause();
         }
     }
 
     private TopDocs searchTopCandidates(
-            LeafReaderContext leafReaderContext,
-            ExactSearcherContext context,
-            int limit,
-            @NonNull Predicate<Float> filterScore,
-            int minDocId,
-            int maxDocId
+        LeafReaderContext leafReaderContext,
+        ExactSearcherContext context,
+        int limit,
+        @NonNull Predicate<Float> filterScore,
+        int minDocId,
+        int maxDocId
     ) throws IOException {
         log.debug("Working Thread: {}", Thread.currentThread().getName());
         BitSet filterBitSet = context.getFilterBitSet();
         DocIdSetIterator matchedDocs = filterBitSet != null
-                ? new RangeDocIdSetIterator(new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()), minDocId, maxDocId)
-                : DocIdSetIterator.range(minDocId, maxDocId);
+            ? new RangeDocIdSetIterator(new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()), minDocId, maxDocId)
+            : DocIdSetIterator.range(minDocId, maxDocId);
         KNNIterator iterator = getKNNIterator(leafReaderContext, context, matchedDocs);
         if (iterator == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
@@ -185,24 +186,24 @@ public class ExactSearcher {
     }
 
     private TopDocs filterDocsByMinScore(LeafReaderContext leafReaderContext, ExactSearcherContext context, float minScore)
-            throws IOException {
+        throws IOException {
         int maxResultWindow = context.getMaxResultWindow();
         Predicate<Float> scoreGreaterThanOrEqualToMinScore = score -> score >= minScore;
         return partitionLeaf(leafReaderContext, context, maxResultWindow, scoreGreaterThanOrEqualToMinScore);
     }
 
     private KNNIterator getKNNIterator(
-            LeafReaderContext leafReaderContext,
-            ExactSearcherContext exactSearcherContext,
-            DocIdSetIterator matchedDocs
+        LeafReaderContext leafReaderContext,
+        ExactSearcherContext exactSearcherContext,
+        DocIdSetIterator matchedDocs
     ) throws IOException {
         final SegmentReader reader = Lucene.segmentReader(leafReaderContext.reader());
         final FieldInfo fieldInfo = FieldInfoExtractor.getFieldInfo(reader, exactSearcherContext.getField());
         if (fieldInfo == null) {
             log.debug(
-                    "[KNN] Cannot get KNNIterator as Field info not found for {}:{}",
-                    exactSearcherContext.getField(),
-                    reader.getSegmentName()
+                "[KNN] Cannot get KNNIterator as Field info not found for {}:{}",
+                exactSearcherContext.getField(),
+                reader.getSegmentName()
             );
             return null;
         }
@@ -214,18 +215,18 @@ public class ExactSearcher {
             final KNNVectorValues<byte[]> vectorValues = KNNVectorValuesFactory.getVectorValues(fieldInfo, reader);
             if (isNestedRequired) {
                 return new NestedBinaryVectorIdsKNNIterator(
-                        matchedDocs,
-                        exactSearcherContext.getByteQueryVector(),
-                        (KNNBinaryVectorValues) vectorValues,
-                        spaceType,
-                        exactSearcherContext.getParentsFilter().getBitSet(leafReaderContext)
-                );
-            }
-            return new BinaryVectorIdsKNNIterator(
                     matchedDocs,
                     exactSearcherContext.getByteQueryVector(),
                     (KNNBinaryVectorValues) vectorValues,
-                    spaceType
+                    spaceType,
+                    exactSearcherContext.getParentsFilter().getBitSet(leafReaderContext)
+                );
+            }
+            return new BinaryVectorIdsKNNIterator(
+                matchedDocs,
+                exactSearcherContext.getByteQueryVector(),
+                (KNNBinaryVectorValues) vectorValues,
+                spaceType
             );
         }
 
@@ -233,18 +234,18 @@ public class ExactSearcher {
             final KNNVectorValues<byte[]> vectorValues = KNNVectorValuesFactory.getVectorValues(fieldInfo, reader);
             if (isNestedRequired) {
                 return new NestedByteVectorIdsKNNIterator(
-                        matchedDocs,
-                        exactSearcherContext.getFloatQueryVector(),
-                        (KNNByteVectorValues) vectorValues,
-                        spaceType,
-                        exactSearcherContext.getParentsFilter().getBitSet(leafReaderContext)
-                );
-            }
-            return new ByteVectorIdsKNNIterator(
                     matchedDocs,
                     exactSearcherContext.getFloatQueryVector(),
                     (KNNByteVectorValues) vectorValues,
-                    spaceType
+                    spaceType,
+                    exactSearcherContext.getParentsFilter().getBitSet(leafReaderContext)
+                );
+            }
+            return new ByteVectorIdsKNNIterator(
+                matchedDocs,
+                exactSearcherContext.getFloatQueryVector(),
+                (KNNByteVectorValues) vectorValues,
+                spaceType
             );
         }
         final byte[] quantizedQueryVector;
@@ -254,8 +255,8 @@ public class ExactSearcher {
             segmentLevelQuantizationInfo = SegmentLevelQuantizationInfo.build(reader, fieldInfo, exactSearcherContext.getField());
             // Quantize the Query Vector Once.
             quantizedQueryVector = SegmentLevelQuantizationUtil.quantizeVector(
-                    exactSearcherContext.getFloatQueryVector(),
-                    segmentLevelQuantizationInfo
+                exactSearcherContext.getFloatQueryVector(),
+                segmentLevelQuantizationInfo
             );
         } else {
             segmentLevelQuantizationInfo = null;
@@ -265,22 +266,22 @@ public class ExactSearcher {
         final KNNVectorValues<float[]> vectorValues = KNNVectorValuesFactory.getVectorValues(fieldInfo, reader);
         if (isNestedRequired) {
             return new NestedVectorIdsKNNIterator(
-                    matchedDocs,
-                    exactSearcherContext.getFloatQueryVector(),
-                    (KNNFloatVectorValues) vectorValues,
-                    spaceType,
-                    exactSearcherContext.getParentsFilter().getBitSet(leafReaderContext),
-                    quantizedQueryVector,
-                    segmentLevelQuantizationInfo
-            );
-        }
-        return new VectorIdsKNNIterator(
                 matchedDocs,
                 exactSearcherContext.getFloatQueryVector(),
                 (KNNFloatVectorValues) vectorValues,
                 spaceType,
+                exactSearcherContext.getParentsFilter().getBitSet(leafReaderContext),
                 quantizedQueryVector,
                 segmentLevelQuantizationInfo
+            );
+        }
+        return new VectorIdsKNNIterator(
+            matchedDocs,
+            exactSearcherContext.getFloatQueryVector(),
+            (KNNFloatVectorValues) vectorValues,
+            spaceType,
+            quantizedQueryVector,
+            segmentLevelQuantizationInfo
         );
     }
 
@@ -323,7 +324,14 @@ public class ExactSearcher {
         final int minDocId;
         final int maxDocId;
 
-        public ExactSearchTask(LeafReaderContext leafReaderContext, ExactSearcherContext context, int limit, @NonNull Predicate<Float> filterScore, int minDocId, int maxDocId) {
+        public ExactSearchTask(
+            LeafReaderContext leafReaderContext,
+            ExactSearcherContext context,
+            int limit,
+            @NonNull Predicate<Float> filterScore,
+            int minDocId,
+            int maxDocId
+        ) {
             this.leafReaderContext = leafReaderContext;
             this.context = context;
             this.limit = limit;
@@ -340,14 +348,13 @@ public class ExactSearcher {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            }
-            else {
-                int mid =  minDocId + (maxDocId - minDocId) / 2;
+            } else {
+                int mid = minDocId + (maxDocId - minDocId) / 2;
                 ExactSearchTask left = new ExactSearchTask(leafReaderContext, context, limit, filterScore, minDocId, mid);
                 ExactSearchTask right = new ExactSearchTask(leafReaderContext, context, limit, filterScore, mid, maxDocId);
                 left.fork();
                 right.fork();
-                return TopDocs.merge(context.getK(), new TopDocs[] {left.join(), right.join()});
+                return TopDocs.merge(context.getK(), new TopDocs[] { left.join(), right.join() });
             }
         }
     }
