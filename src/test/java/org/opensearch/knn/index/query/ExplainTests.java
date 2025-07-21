@@ -188,8 +188,7 @@ public class ExplainTests extends KNNWeightTestCase {
         query.setExplain(true);
 
         final float boost = 1;
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight);
 
         // When
         final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
@@ -261,8 +260,7 @@ public class ExplainTests extends KNNWeightTestCase {
             .rescoreContext(rescoreContext)
             .explain(true)
             .build();
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, 1.0f, null, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, 1.0f, null);
 
         final ExactSearcher.ExactSearcherContext exactSearchContext = ExactSearcher.ExactSearcherContext.builder()
             // setting to true, so that if quantization details are present we want to do search on the quantized
@@ -338,8 +336,7 @@ public class ExplainTests extends KNNWeightTestCase {
 
         final float boost = 1;
 
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight);
 
         // When
         final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
@@ -415,8 +412,7 @@ public class ExplainTests extends KNNWeightTestCase {
         query.setExplain(true);
 
         final float boost = 1;
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight, mockedIndexSearcher);
+        KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight);
 
         // When
         final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
@@ -467,8 +463,7 @@ public class ExplainTests extends KNNWeightTestCase {
             .vectorDataType(VectorDataType.FLOAT)
             .explain(true)
             .build();
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, 1.0f, null, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, 1.0f, null);
 
         Map<String, String> attributesMap = Map.of(
             SPACE_TYPE,
@@ -549,8 +544,7 @@ public class ExplainTests extends KNNWeightTestCase {
 
             query.setExplain(true);
             final float boost = (float) randomDoubleBetween(0, 10, true);
-            final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-            final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight, mockedIndexSearcher);
+            final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight);
 
             final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
             assertNotNull(knnScorer);
@@ -604,8 +598,7 @@ public class ExplainTests extends KNNWeightTestCase {
         query.setExplain(true);
 
         final float boost = (float) randomDoubleBetween(0, 10, true);
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight);
 
         final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
         assertNotNull(knnScorer);
@@ -657,8 +650,7 @@ public class ExplainTests extends KNNWeightTestCase {
         query.setExplain(true);
 
         final float boost = 1;
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, filterQueryWeight);
         final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
         assertNotNull(knnScorer);
         knnWeight.getKnnExplanation().addKnnScorer(leafReaderContext, knnScorer);
@@ -730,8 +722,7 @@ public class ExplainTests extends KNNWeightTestCase {
             .methodParameters(HNSW_METHOD_PARAMETERS)
             .build();
         final float boost = 1;
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, null, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, null);
 
         final KNNScorer knnScorer = (KNNScorer) knnWeight.scorer(leafReaderContext);
         assertNotNull(knnScorer);
@@ -824,8 +815,7 @@ public class ExplainTests extends KNNWeightTestCase {
             .methodParameters(HNSW_METHOD_PARAMETERS)
             .build();
         final float boost = 1;
-        final IndexSearcher mockedIndexSearcher = mock(IndexSearcher.class);
-        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, null, mockedIndexSearcher);
+        final KNNWeight knnWeight = new DefaultKNNWeight(query, boost, null);
         final ExactSearcher.ExactSearcherContext exactSearchContext = ExactSearcher.ExactSearcherContext.builder()
             // setting to true, so that if quantization details are present we want to do search on the quantized
             // vectors as this flow is used in first pass of search.
