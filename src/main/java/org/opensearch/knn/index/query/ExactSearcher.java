@@ -84,7 +84,7 @@ public class ExactSearcher {
         if (context.getFilterBitSet() != null && context.numberOfMatchedDocs <= context.getK()) {
             return scoreAllDocs(leafReaderContext, context);
         }
-        return partitionLeaf(leafReaderContext, context, context.getK(), Predicates.alwaysTrue());
+        return doSearch(leafReaderContext, context, context.getK(), Predicates.alwaysTrue());
     }
 
     /**
@@ -135,7 +135,7 @@ public class ExactSearcher {
         return new TopDocs(new TotalHits(scoreDocList.size(), TotalHits.Relation.EQUAL_TO), scoreDocList.toArray(ScoreDoc[]::new));
     }
 
-    private TopDocs partitionLeaf(
+    private TopDocs doSearch(
         LeafReaderContext leafReaderContext,
         ExactSearcherContext context,
         int limit,
@@ -150,58 +150,12 @@ public class ExactSearcher {
         }
     }
 
-    private TopDocs searchTopCandidates(
-        LeafReaderContext leafReaderContext,
-        ExactSearcherContext context,
-        int limit,
-        @NonNull Predicate<Float> filterScore,
-        int minDocId,
-        int maxDocId
-    ) throws IOException {
-        log.debug("Working Thread: {}", Thread.currentThread().getName());
-        BitSet filterBitSet = context.getFilterBitSet();
-        DocIdSetIterator matchedDocs = filterBitSet != null
-            ? new RangeDocIdSetIterator(new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()), minDocId, maxDocId)
-            : DocIdSetIterator.range(minDocId, maxDocId);
-        KNNIterator iterator = getKNNIterator(leafReaderContext, context, matchedDocs);
-        if (iterator == null) {
-            return TopDocsCollector.EMPTY_TOPDOCS;
-        }
-        final HitQueue queue = new HitQueue(limit, true);
-        ScoreDoc topDoc = queue.top();
-        int docId;
-        while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            final float currentScore = iterator.score();
-            if (filterScore.test(currentScore) && currentScore > topDoc.score) {
-                topDoc.score = currentScore;
-                topDoc.doc = docId;
-                // As the HitQueue is min heap, updating top will bring the doc with -INF score or worst score we
-                // have seen till now on top.
-                topDoc = queue.updateTop();
-            }
-        }
-
-        // If scores are negative we will remove them.
-        // This is done, because there can be negative values in the Heap as we init the heap with Score as -INF.
-        // If filterIds < k, some values in heap can have a negative score.
-        while (queue.size() > 0 && queue.top().score < 0) {
-            queue.pop();
-        }
-
-        ScoreDoc[] topScoreDocs = new ScoreDoc[queue.size()];
-        for (int j = topScoreDocs.length - 1; j >= 0; j--) {
-            topScoreDocs[j] = queue.pop();
-        }
-
-        TotalHits totalHits = new TotalHits(topScoreDocs.length, TotalHits.Relation.EQUAL_TO);
-        return new TopDocs(totalHits, topScoreDocs);
-    }
 
     private TopDocs filterDocsByMinScore(LeafReaderContext leafReaderContext, ExactSearcherContext context, float minScore)
         throws IOException {
         int maxResultWindow = context.getMaxResultWindow();
         Predicate<Float> scoreGreaterThanOrEqualToMinScore = score -> score >= minScore;
-        return partitionLeaf(leafReaderContext, context, maxResultWindow, scoreGreaterThanOrEqualToMinScore);
+        return doSearch(leafReaderContext, context, maxResultWindow, scoreGreaterThanOrEqualToMinScore);
     }
 
     private KNNIterator getKNNIterator(
@@ -369,5 +323,52 @@ public class ExactSearcher {
                 return TopDocs.merge(context.getK(), new TopDocs[] { left.join(), right.join() });
             }
         }
+    }
+
+    private TopDocs searchTopCandidates(
+        LeafReaderContext leafReaderContext,
+        ExactSearcherContext context,
+        int limit,
+        @NonNull Predicate<Float> filterScore,
+        int minDocId,
+        int maxDocId
+    ) throws IOException {
+        log.debug("Working Thread: {}", Thread.currentThread().getName());
+        BitSet filterBitSet = context.getFilterBitSet();
+        DocIdSetIterator matchedDocs = filterBitSet != null
+                ? new RangeDocIdSetIterator(new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()), minDocId, maxDocId)
+                : DocIdSetIterator.range(minDocId, maxDocId);
+        KNNIterator iterator = getKNNIterator(leafReaderContext, context, matchedDocs);
+        if (iterator == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        final HitQueue queue = new HitQueue(limit, true);
+        ScoreDoc topDoc = queue.top();
+        int docId;
+        while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            final float currentScore = iterator.score();
+            if (filterScore.test(currentScore) && currentScore > topDoc.score) {
+                topDoc.score = currentScore;
+                topDoc.doc = docId;
+                // As the HitQueue is min heap, updating top will bring the doc with -INF score or worst score we
+                // have seen till now on top.
+                topDoc = queue.updateTop();
+            }
+        }
+
+        // If scores are negative we will remove them.
+        // This is done, because there can be negative values in the Heap as we init the heap with Score as -INF.
+        // If filterIds < k, some values in heap can have a negative score.
+        while (queue.size() > 0 && queue.top().score < 0) {
+            queue.pop();
+        }
+
+        ScoreDoc[] topScoreDocs = new ScoreDoc[queue.size()];
+        for (int i = topScoreDocs.length - 1; i >= 0; i--) {
+            topScoreDocs[i] = queue.pop();
+        }
+
+        TotalHits totalHits = new TotalHits(topScoreDocs.length, TotalHits.Relation.EQUAL_TO);
+        return new TopDocs(totalHits, topScoreDocs);
     }
 }
