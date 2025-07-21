@@ -11,7 +11,15 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -70,22 +78,20 @@ public abstract class KNNWeight extends Weight {
     @Getter
     private final Weight filterWeight;
     private final ExactSearcher exactSearcher;
-    private final IndexSearcher indexSearcher;
 
     protected final QuantizationService quantizationService;
     private final KnnExplanation knnExplanation;
 
     public KNNWeight(KNNQuery query, float boost) {
-        this(query, boost, null, null);
+        this(query, boost, null);
     }
 
-    public KNNWeight(KNNQuery query, float boost, Weight filterWeight, IndexSearcher indexSearcher) {
+    public KNNWeight(KNNQuery query, float boost, Weight filterWeight) {
         super(query);
         this.knnQuery = query;
         this.boost = boost;
         this.filterWeight = filterWeight;
         this.exactSearcher = DEFAULT_EXACT_SEARCHER;
-        this.indexSearcher = indexSearcher;
         this.quantizationService = QuantizationService.getInstance();
         this.knnExplanation = new KnnExplanation();
     }
@@ -309,7 +315,7 @@ public abstract class KNNWeight extends Weight {
          * This improves the recall.
          */
         if (isFilteredExactSearchPreferred(cardinality)) {
-            TopDocs result = doExactSearch(context, filterBitSet, cardinality, k, indexSearcher.getTaskExecutor());
+            TopDocs result = doExactSearch(context, filterBitSet, cardinality, k);
             return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
         }
 
@@ -330,7 +336,7 @@ public abstract class KNNWeight extends Weight {
         // results less than K, though we have more than k filtered docs
         if (isExactSearchRequire(context, cardinality, topDocs.scoreDocs.length)) {
             final BitSet docs = filterWeight != null ? filterBitSet : null;
-            TopDocs result = doExactSearch(context, docs, cardinality, k, indexSearcher.getTaskExecutor());
+            TopDocs result = doExactSearch(context, docs, cardinality, k);
             return new PerLeafResult(filterWeight == null ? null : filterBitSet, result);
         }
         return new PerLeafResult(filterWeight == null ? null : filterBitSet, topDocs);
@@ -379,8 +385,7 @@ public abstract class KNNWeight extends Weight {
         final LeafReaderContext context,
         final BitSet filterBitSet,
         final long numberOfAcceptedDocs,
-        final int k,
-        final TaskExecutor taskExecutor
+        final int k
     ) throws IOException {
         final ExactSearcherContextBuilder exactSearcherContextBuilder = ExactSearcher.ExactSearcherContext.builder()
             .parentsFilter(knnQuery.getParentsFilter())

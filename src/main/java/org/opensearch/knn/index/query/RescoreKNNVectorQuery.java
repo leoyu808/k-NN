@@ -88,13 +88,12 @@ public class RescoreKNNVectorQuery extends Query {
         List<LeafReaderContext> leafReaderContexts = indexSearcher.getIndexReader().leaves();
         List<Callable<TopDocs>> rescoreTasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            rescoreTasks.add(() -> searchLeaf(indexSearcher, exactSearcher, weight, k, leafReaderContext));
+            rescoreTasks.add(() -> searchLeaf(exactSearcher, weight, k, leafReaderContext));
         }
         return indexSearcher.getTaskExecutor().invokeAll(rescoreTasks).toArray(TopDocs[]::new);
     }
 
     private TopDocs searchLeaf(
-        IndexSearcher indexSearcher,
         ExactSearcher searcher,
         Weight weight,
         int k,
