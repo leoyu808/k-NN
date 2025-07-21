@@ -46,7 +46,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.opensearch.knn.common.KNNConstants.*;
+import static org.opensearch.knn.common.KNNConstants.KNN_ENGINE;
+import static org.opensearch.knn.common.KNNConstants.MODEL_ID;
+import static org.opensearch.knn.common.KNNConstants.SPACE_TYPE;
+import static org.opensearch.knn.common.KNNConstants.VECTOR_DATA_TYPE_FIELD;
 
 /**
  * {@link KNNWeight} serves as a template for implementing approximate nearest neighbor (ANN)
