@@ -40,7 +40,7 @@ public class MemoryOptimizedKNNWeight extends KNNWeight {
     private final KnnCollectorManager knnCollectorManager;
 
     public MemoryOptimizedKNNWeight(KNNQuery query, float boost, final Weight filterWeight, IndexSearcher searcher, int k) {
-        super(query, boost, filterWeight, searcher);
+        super(query, boost, filterWeight);
 
         if (k > 0) {
             // ANN Search
