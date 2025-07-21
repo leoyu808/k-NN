@@ -128,6 +128,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.knn.common.KNNConstants.KNN_THREAD_POOL_PREFIX;
 import static org.opensearch.knn.common.KNNConstants.MODEL_INDEX_NAME;
 import static org.opensearch.knn.common.KNNConstants.TRAIN_THREAD_POOL;
+import static org.opensearch.knn.common.KNNConstants.KNN_FORKJOIN_THREAD_POOL_PREFIX;
 import static org.opensearch.knn.common.KNNConstants.SEARCH_THREAD_POOL;
 import static org.opensearch.knn.index.KNNCircuitBreaker.KNN_CIRCUIT_BREAKER_TIER;
 import static org.opensearch.knn.index.KNNSettings.KNN_DERIVED_SOURCE_ENABLED;
