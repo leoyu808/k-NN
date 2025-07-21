@@ -23,6 +23,8 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -31,6 +33,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.knn.index.KNNSettings;
+import org.opensearch.knn.index.query.ExactSearcher;
 import org.opensearch.knn.index.query.KNNQuery;
 import org.opensearch.knn.index.query.KNNWeight;
 import org.opensearch.knn.index.query.PerLeafResult;
@@ -523,14 +526,16 @@ public class NativeEngineKNNVectorQueryTests extends OpenSearchTestCase {
             assertEquals(topK.scoreDocs[i].shardIndex, capturedTopDocs.scoreDocs[i].shardIndex);
         }
 
-        // Verify acceptedDocIds is intersection of allSiblings and filteredDocIds
-        // ArgumentCaptor<ExactSearcher.ExactSearcherContext> contextCaptor = ArgumentCaptor.forClass(
-        // ExactSearcher.ExactSearcherContext.class
-        // );
-        // verify(knnWeight, times(perLeafResults.size())).exactSearch(any(), contextCaptor.capture());
-        // assertEquals(1, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
-        // assertEquals(2, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
-        // assertEquals(DocIdSetIterator.NO_MORE_DOCS, contextCaptor.getValue().getMatchedDocsIterator().nextDoc());
+         // Verify acceptedDocIds is intersection of allSiblings and filteredDocIds
+         ArgumentCaptor<ExactSearcher.ExactSearcherContext> contextCaptor = ArgumentCaptor.forClass(
+            ExactSearcher.ExactSearcherContext.class
+         );
+         verify(knnWeight, times(perLeafResults.size())).exactSearch(any(), contextCaptor.capture());
+         BitSet filterBitSet = contextCaptor.getValue().getFilterBitSet();
+         BitSetIterator matchedDocs = new BitSetIterator(filterBitSet, filterBitSet.cardinality());
+         assertEquals(1, matchedDocs.nextDoc());
+         assertEquals(2, matchedDocs.nextDoc());
+         assertEquals(DocIdSetIterator.NO_MORE_DOCS, matchedDocs.nextDoc());
     }
 
     private IndexReader createTestIndexReader() throws IOException {
