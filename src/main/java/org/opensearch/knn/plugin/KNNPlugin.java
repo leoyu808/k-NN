@@ -377,11 +377,12 @@ public class KNNPlugin extends Plugin
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return ImmutableList.of(
             new FixedExecutorBuilder(settings, TRAIN_THREAD_POOL, 1, 1, KNN_THREAD_POOL_PREFIX, false),
-            new ForkJoinExecutorBuilder(
+            new FixedExecutorBuilder(
                 settings,
                 SEARCH_THREAD_POOL,
                 ThreadPool.searchThreadPoolSize(OpenSearchExecutors.allocatedProcessors(settings)),
-                KNN_FORKJOIN_THREAD_POOL_PREFIX,
+                1000,
+                KNN_THREAD_POOL_PREFIX,
                 false
             )
         );
