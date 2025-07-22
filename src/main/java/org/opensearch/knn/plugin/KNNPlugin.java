@@ -382,7 +382,7 @@ public class KNNPlugin extends Plugin
                 SEARCH_THREAD_POOL,
                 ThreadPool.searchThreadPoolSize(OpenSearchExecutors.allocatedProcessors(settings)),
                 1000,
-                KNN_THREAD_POOL_PREFIX,
+                KNN_FORKJOIN_THREAD_POOL_PREFIX,
                 false
             )
         );

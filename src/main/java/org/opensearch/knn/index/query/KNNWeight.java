@@ -296,9 +296,9 @@ public abstract class KNNWeight extends Weight {
         final SegmentReader reader = Lucene.segmentReader(context.reader());
         final String segmentName = reader.getSegmentName();
 
-        StopWatch stopWatch = startStopWatch();
+        // StopWatch stopWatch = startStopWatch();
         final BitSet filterBitSet = getFilteredDocsBitSet(context);
-        stopStopWatchAndLog(stopWatch, "FilterBitSet creation", segmentName);
+        // stopStopWatchAndLog(stopWatch, "FilterBitSet creation", segmentName);
 
         final int maxDoc = context.reader().maxDoc();
         int cardinality = filterBitSet.cardinality();
@@ -328,9 +328,9 @@ public abstract class KNNWeight extends Weight {
          */
         final BitSet annFilter = (filterWeight != null && cardinality == maxDoc) ? null : filterBitSet;
 
-        StopWatch annStopWatch = startStopWatch();
+        // StopWatch annStopWatch = startStopWatch();
         final TopDocs topDocs = approximateSearch(context, annFilter, cardinality, k);
-        stopStopWatchAndLog(annStopWatch, "ANN search", segmentName);
+        // stopStopWatchAndLog(annStopWatch, "ANN search", segmentName);
         if (knnQuery.isExplain()) {
             knnExplanation.addLeafResult(context.id(), topDocs.scoreDocs.length);
         }
@@ -348,8 +348,8 @@ public abstract class KNNWeight extends Weight {
     private void stopStopWatchAndLog(@Nullable final StopWatch stopWatch, final String prefixMessage, String segmentName) {
         if (log.isDebugEnabled() && stopWatch != null) {
             stopWatch.stop();
-            final String logMessage = prefixMessage + " shard: [{}], segment: [{}], field: [{}], time in nanos:[{}] ";
-            log.debug(logMessage, knnQuery.getShardId(), segmentName, knnQuery.getField(), stopWatch.totalTime().nanos());
+            final String logMessage = prefixMessage + " shard: [{}], segment: [{}], field: [{}], time in millis:[{}] ";
+            log.debug(logMessage, knnQuery.getShardId(), segmentName, knnQuery.getField(), stopWatch.totalTime().millis());
         }
     }
 
@@ -455,7 +455,7 @@ public abstract class KNNWeight extends Weight {
 
         List<String> engineFiles = KNNCodecUtil.getEngineFiles(knnEngine.getExtension(), knnQuery.getField(), reader.getSegmentInfo().info);
         if (engineFiles.isEmpty()) {
-            log.debug("[KNN] No native engine files found for field {} for segment {}", knnQuery.getField(), reader.getSegmentName());
+            // log.debug("[KNN] No native engine files found for field {} for segment {}", knnQuery.getField(), reader.getSegmentName());
             return EMPTY_TOPDOCS;
         }
 
@@ -621,7 +621,7 @@ public abstract class KNNWeight extends Weight {
      */
     private boolean isExactSearchRequire(final LeafReaderContext context, final int filterIdsCount, final int annResultCount) {
         if (annResultCount == 0 && isMissingNativeEngineFiles(context)) {
-            log.debug("Perform exact search after approximate search since no native engine files are available");
+            // log.debug("Perform exact search after approximate search since no native engine files are available");
             return true;
         }
         if (isFilteredExactSearchRequireAfterANNSearch(filterIdsCount, annResultCount)) {
