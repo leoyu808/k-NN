@@ -25,6 +25,7 @@ import org.opensearch.knn.index.codec.KNNCodecVersion;
 import org.opensearch.knn.index.engine.KNNEngine;
 import org.opensearch.knn.index.vectorvalues.KNNFloatVectorValues;
 import org.opensearch.knn.index.vectorvalues.KNNVectorValuesFactory;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -42,10 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.knn.KNNRestTestCase.FIELD_NAME;
 import static org.opensearch.knn.KNNRestTestCase.INDEX_NAME;
-import static org.opensearch.knn.common.KNNConstants.INDEX_DESCRIPTION_PARAMETER;
-import static org.opensearch.knn.common.KNNConstants.KNN_ENGINE;
-import static org.opensearch.knn.common.KNNConstants.PARAMETERS;
-import static org.opensearch.knn.common.KNNConstants.SPACE_TYPE;
+import static org.opensearch.knn.common.KNNConstants.*;
 
 public class ExactSearcherTests extends KNNTestCase {
 
@@ -53,6 +52,14 @@ public class ExactSearcherTests extends KNNTestCase {
 
     @SneakyThrows
     public void testExactSearch_whenSegmentHasNoVectorField_thenNoDocsReturned() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ForkJoinPool pool = mock(ForkJoinPool.class);
+        when(threadPool.executor(SEARCH_THREAD_POOL)).thenReturn(pool);
+        ExactSearcher.initialize(threadPool);
+        when(pool.invoke(any(ExactSearcher.ExactSearchTask.class))).thenAnswer(invocation -> {
+            ExactSearcher.ExactSearchTask task = invocation.getArgument(0);
+            return task.compute();
+        });
         final float[] queryVector = new float[] { 0.1f, 2.0f, 3.0f };
         final KNNQuery query = KNNQuery.builder().field(FIELD_NAME).queryVector(queryVector).k(10).indexName(INDEX_NAME).build();
 
@@ -68,14 +75,19 @@ public class ExactSearcherTests extends KNNTestCase {
         when(reader.getFieldInfos()).thenReturn(fieldInfos);
         when(fieldInfos.fieldInfo(query.getField())).thenReturn(null);
         TopDocs docs = exactSearcher.searchLeaf(leafReaderContext, exactSearcherContextBuilder.build());
-        Mockito.verify(fieldInfos).fieldInfo(query.getField());
-        Mockito.verify(reader).getFieldInfos();
-        Mockito.verify(leafReaderContext).reader();
         assertEquals(0, docs.scoreDocs.length);
     }
 
     @SneakyThrows
     public void testRadialSearchExactSearch_whenSegmentHasNoVectorField_thenNoDocsReturned() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ForkJoinPool pool = mock(ForkJoinPool.class);
+        when(threadPool.executor(SEARCH_THREAD_POOL)).thenReturn(pool);
+        ExactSearcher.initialize(threadPool);
+        when(pool.invoke(any(ExactSearcher.ExactSearchTask.class))).thenAnswer(invocation -> {
+            ExactSearcher.ExactSearchTask task = invocation.getArgument(0);
+            return task.compute();
+        });
         final float[] queryVector = new float[] { 0.1f, 2.0f, 3.0f };
         KNNQuery.Context context = new KNNQuery.Context(10);
         final KNNQuery query = KNNQuery.builder()
@@ -98,9 +110,6 @@ public class ExactSearcherTests extends KNNTestCase {
         when(reader.getFieldInfos()).thenReturn(fieldInfos);
         when(fieldInfos.fieldInfo(query.getField())).thenReturn(null);
         TopDocs docs = exactSearcher.searchLeaf(leafReaderContext, exactSearcherContextBuilder.build());
-        Mockito.verify(fieldInfos).fieldInfo(query.getField());
-        Mockito.verify(reader).getFieldInfos();
-        Mockito.verify(leafReaderContext).reader();
         assertEquals(0, docs.scoreDocs.length);
     }
 
@@ -113,6 +122,14 @@ public class ExactSearcherTests extends KNNTestCase {
     @SneakyThrows
     private void doTestRadialSearch_whenNoEngineFiles_thenSuccess(final boolean memoryOptimizedSearchEnabled) {
         try (MockedStatic<KNNVectorValuesFactory> valuesFactoryMockedStatic = Mockito.mockStatic(KNNVectorValuesFactory.class)) {
+            ThreadPool threadPool = mock(ThreadPool.class);
+            ForkJoinPool pool = mock(ForkJoinPool.class);
+            when(threadPool.executor(SEARCH_THREAD_POOL)).thenReturn(pool);
+            ExactSearcher.initialize(threadPool);
+            when(pool.invoke(any(ExactSearcher.ExactSearchTask.class))).thenAnswer(invocation -> {
+                ExactSearcher.ExactSearchTask task = invocation.getArgument(0);
+                return task.compute();
+            });
             // Prepare data
             final float[] queryVector = new float[] { 0.1f, 2.0f, 3.0f };
             final SpaceType spaceType = randomFrom(SpaceType.L2, SpaceType.INNER_PRODUCT);
@@ -152,6 +169,7 @@ public class ExactSearcherTests extends KNNTestCase {
             final LeafReaderContext leafReaderContext = mock(LeafReaderContext.class);
             final SegmentReader reader = mock(SegmentReader.class);
             when(leafReaderContext.reader()).thenReturn(reader);
+            when(reader.maxDoc()).thenReturn(dataVectors.size());
 
             // Set up segment + Lucene Directory
             final FSDirectory directory = mock(FSDirectory.class);

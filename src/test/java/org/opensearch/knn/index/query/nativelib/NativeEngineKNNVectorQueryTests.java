@@ -26,6 +26,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -272,8 +273,8 @@ public class NativeEngineKNNVectorQueryTests extends OpenSearchTestCase {
         leafReader2 = leaf2.reader();
 
         int k = 2;
-        PerLeafResult initialLeaf1Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 21f, 1, 19f, 2, 17f))));
-        PerLeafResult initialLeaf2Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 20f, 1, 18f, 2, 16f))));
+        PerLeafResult initialLeaf1Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 21f, 1, 19f))));
+        PerLeafResult initialLeaf2Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 20f, 1, 18f))));
         Map<Integer, Float> rescoredLeaf1Results = new HashMap<>(Map.of(0, 18f, 1, 20f));
         Map<Integer, Float> rescoredLeaf2Results = new HashMap<>(Map.of(0, 21f));
 
@@ -391,8 +392,8 @@ public class NativeEngineKNNVectorQueryTests extends OpenSearchTestCase {
 
         int k = 2;
         int firstPassK = 100;
-        PerLeafResult initialLeaf1Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 21f, 1, 19f, 2, 17f, 3, 15f))));
-        PerLeafResult initialLeaf2Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 20f, 1, 18f, 2, 16f, 3, 14f))));
+        PerLeafResult initialLeaf1Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 21f, 1, 19f))));
+        PerLeafResult initialLeaf2Results = new PerLeafResult(null, buildTopDocs(new HashMap<>(Map.of(0, 20f, 1, 18f))));
         TopDocs topDocs1 = ResultUtil.resultMapToTopDocs(Map.of(0, 18f, 1, 20f), 0);
         TopDocs topDocs2 = ResultUtil.resultMapToTopDocs(Map.of(0, 21f), 4);
         when(knnQuery.getRescoreContext()).thenReturn(RescoreContext.builder().oversampleFactor(1.5f).build());
@@ -497,15 +498,16 @@ public class NativeEngineKNNVectorQueryTests extends OpenSearchTestCase {
         Weight filterWeight = mock(Weight.class);
         when(knnWeight.getFilterWeight()).thenReturn(filterWeight);
 
-        DocIdSetIterator allSiblings = mock(DocIdSetIterator.class);
-        when(allSiblings.nextDoc()).thenReturn(1, 2, DocIdSetIterator.NO_MORE_DOCS);
+        StubDocIdSetIterator allSiblings1 = new StubDocIdSetIterator(new int[] {-1, 1}, 2);
+        StubDocIdSetIterator allSiblings2 = new StubDocIdSetIterator(new int[] {-1, 0, 1}, 1);
 
         Weight expectedWeight = mock(Weight.class);
         Query finalQuery = mock(Query.class);
         when(finalQuery.createWeight(searcher, scoreMode, 1)).thenReturn(expectedWeight);
 
         QueryUtils queryUtils = mock(QueryUtils.class);
-        when(queryUtils.getAllSiblings(any(), any(), any(), any())).thenReturn(allSiblings);
+        when(queryUtils.getAllSiblings(eq(leaf1), any(), any(), any())).thenReturn(allSiblings1);
+        when(queryUtils.getAllSiblings(eq(leaf2), any(), any(), any())).thenReturn(allSiblings2);
         when(queryUtils.createDocAndScoreQuery(eq(reader), any(), eq(knnWeight))).thenReturn(finalQuery);
 
         // Run
@@ -526,16 +528,53 @@ public class NativeEngineKNNVectorQueryTests extends OpenSearchTestCase {
             assertEquals(topK.scoreDocs[i].shardIndex, capturedTopDocs.scoreDocs[i].shardIndex);
         }
 
-         // Verify acceptedDocIds is intersection of allSiblings and filteredDocIds
-         ArgumentCaptor<ExactSearcher.ExactSearcherContext> contextCaptor = ArgumentCaptor.forClass(
-            ExactSearcher.ExactSearcherContext.class
-         );
-         verify(knnWeight, times(perLeafResults.size())).exactSearch(any(), contextCaptor.capture());
-         BitSet filterBitSet = contextCaptor.getValue().getFilterBitSet();
-         BitSetIterator matchedDocs = new BitSetIterator(filterBitSet, filterBitSet.cardinality());
-         assertEquals(1, matchedDocs.nextDoc());
-         assertEquals(2, matchedDocs.nextDoc());
-         assertEquals(DocIdSetIterator.NO_MORE_DOCS, matchedDocs.nextDoc());
+        // Verify acceptedDocIds is intersection of allSiblings and filteredDocIds
+        ArgumentCaptor<ExactSearcher.ExactSearcherContext> contextCaptor = ArgumentCaptor.forClass(
+                ExactSearcher.ExactSearcherContext.class
+        );
+        verify(knnWeight, times(perLeafResults.size())).exactSearch(any(), contextCaptor.capture());
+        assertEquals(0, contextCaptor.getValue().getFilterBitSet().nextSetBit(0));
+        assertEquals(1, contextCaptor.getValue().getFilterBitSet().nextSetBit(1));
+    }
+
+    private static class StubDocIdSetIterator extends DocIdSetIterator {
+        private final int[] docs;
+        private final long cost;
+        private int idx = 0;
+
+        StubDocIdSetIterator(int[] docs, long cost) {
+            this.docs = docs;
+            this.cost = cost;
+        }
+
+        @Override
+        public int docID() {
+            if (idx < 0 || idx >= docs.length) {
+                return NO_MORE_DOCS;
+            }
+            return docs[idx];
+        }
+
+        @Override
+        public int nextDoc() {
+            idx++;
+            return idx < docs.length ? docs[idx] : NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            while (nextDoc() != NO_MORE_DOCS) {
+                if (docID() >= target) {
+                    return docID();
+                }
+            }
+            return NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return cost;
+        }
     }
 
     private IndexReader createTestIndexReader() throws IOException {

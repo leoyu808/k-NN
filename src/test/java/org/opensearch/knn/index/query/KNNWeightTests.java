@@ -51,6 +51,7 @@ import org.opensearch.knn.quantization.models.quantizationParams.QuantizationPar
 import org.opensearch.knn.quantization.models.quantizationParams.ScalarQuantizationParams;
 import org.opensearch.knn.quantization.models.quantizationState.OneBitScalarQuantizationState;
 import org.opensearch.knn.quantization.models.quantizationState.QuantizationState;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -80,12 +82,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.opensearch.knn.KNNRestTestCase.INDEX_NAME;
-import static org.opensearch.knn.common.KNNConstants.KNN_ENGINE;
-import static org.opensearch.knn.common.KNNConstants.MODEL_ID;
-import static org.opensearch.knn.common.KNNConstants.SPACE_TYPE;
-import static org.opensearch.knn.common.KNNConstants.VECTOR_DATA_TYPE_FIELD;
-import static org.opensearch.knn.common.KNNConstants.PARAMETERS;
-import static org.opensearch.knn.common.KNNConstants.INDEX_DESCRIPTION_PARAMETER;
+import static org.opensearch.knn.common.KNNConstants.*;
 import static org.opensearch.knn.utils.TopDocsTestUtils.buildTopDocs;
 
 public class KNNWeightTests extends KNNWeightTestCase {
@@ -1038,6 +1035,14 @@ public class KNNWeightTests extends KNNWeightTestCase {
     public void testANNWithFilterQuery_whenExactSearchViaThresholdSetting_thenSuccess() {
         ModelDao modelDao = mock(ModelDao.class);
         KNNWeight.initialize(modelDao);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ForkJoinPool pool = mock(ForkJoinPool.class);
+        when(threadPool.executor(SEARCH_THREAD_POOL)).thenReturn(pool);
+        ExactSearcher.initialize(threadPool);
+        when(pool.invoke(any(ExactSearcher.ExactSearchTask.class))).thenAnswer(invocation -> {
+            ExactSearcher.ExactSearchTask task = invocation.getArgument(0);
+            return task.compute();
+        });
         knnSettingsMockedStatic.when(() -> KNNSettings.getFilteredExactSearchThreshold(INDEX_NAME)).thenReturn(10);
         float[] vector = new float[] { 0.1f, 0.3f };
         int k = 1;
@@ -1108,6 +1113,14 @@ public class KNNWeightTests extends KNNWeightTestCase {
     public void testANNWithFilterQuery_whenExactSearchViaThresholdSettingOnBinaryIndex_thenSuccess() {
         try (MockedStatic<KNNVectorValuesFactory> vectorValuesFactoryMockedStatic = Mockito.mockStatic(KNNVectorValuesFactory.class)) {
             KNNWeight.initialize(null);
+            ThreadPool threadPool = mock(ThreadPool.class);
+            ForkJoinPool pool = mock(ForkJoinPool.class);
+            when(threadPool.executor(SEARCH_THREAD_POOL)).thenReturn(pool);
+            ExactSearcher.initialize(threadPool);
+            when(pool.invoke(any(ExactSearcher.ExactSearchTask.class))).thenAnswer(invocation -> {
+                ExactSearcher.ExactSearchTask task = invocation.getArgument(0);
+                return task.compute();
+            });
             knnSettingsMockedStatic.when(() -> KNNSettings.getFilteredExactSearchThreshold(INDEX_NAME)).thenReturn(10);
             byte[] vector = new byte[] { 1, 3 };
             int k = 1;

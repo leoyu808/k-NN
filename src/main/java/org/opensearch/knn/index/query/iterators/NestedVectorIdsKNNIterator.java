@@ -14,6 +14,8 @@ import org.opensearch.knn.index.vectorvalues.KNNFloatVectorValues;
 
 import java.io.IOException;
 
+import static org.apache.lucene.index.IndexWriter.MAX_DOCS;
+
 /**
  * This iterator iterates filterIdsArray to score if filter is provided else it iterates over all docs.
  * However, it dedupe docs per each parent doc
@@ -38,7 +40,7 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
         final SpaceType spaceType,
         final BitSet parentBitSet
     ) throws IOException {
-        this(null, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
+        this(DocIdSetIterator.range(0, MAX_DOCS), queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
     }
 
     public NestedVectorIdsKNNIterator(

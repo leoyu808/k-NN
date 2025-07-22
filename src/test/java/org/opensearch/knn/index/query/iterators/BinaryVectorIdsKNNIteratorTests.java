@@ -10,6 +10,7 @@ import lombok.SneakyThrows;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.mockito.stubbing.Answer;
 import org.mockito.stubbing.OngoingStubbing;
 import org.opensearch.knn.index.SpaceType;
 import org.opensearch.knn.index.vectorvalues.KNNBinaryVectorValues;
@@ -83,13 +84,17 @@ public class BinaryVectorIdsKNNIteratorTests extends TestCase {
             dataVectors.get(4)
         );
 
-        // stub return value when nextDoc is called
-        OngoingStubbing<Integer> stubbing = when(values.nextDoc());
-        for (int i = 0; i < dataVectors.size(); i++) {
-            stubbing = stubbing.thenReturn(i);
-        }
-        // set last return to be Integer.MAX_VALUE to represent no more docs
-        stubbing.thenReturn(Integer.MAX_VALUE);
+        // stub return value when advance is called
+        when(values.advance(anyInt())).thenAnswer(
+                (Answer<Integer>) inv -> {
+                    int x = inv.getArgument(0);
+                    if (0 <= x && x < dataVectors.size()) {
+                        return x;
+                    } else {
+                        return Integer.MAX_VALUE;
+                    }
+                }
+        );
 
         // Execute and verify
         BinaryVectorIdsKNNIterator iterator = new BinaryVectorIdsKNNIterator(queryVector, values, spaceType);
@@ -98,6 +103,5 @@ public class BinaryVectorIdsKNNIteratorTests extends TestCase {
             assertEquals(expectedScores.get(i), iterator.score());
         }
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
-        verify(values, never()).advance(anyInt());
     }
 }

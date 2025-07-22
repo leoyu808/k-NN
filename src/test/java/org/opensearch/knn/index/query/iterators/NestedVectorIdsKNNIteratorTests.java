@@ -11,6 +11,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.mockito.stubbing.Answer;
 import org.opensearch.knn.index.SpaceType;
 import org.opensearch.knn.index.vectorvalues.KNNFloatVectorValues;
 
@@ -90,7 +91,8 @@ public class NestedVectorIdsKNNIteratorTests extends TestCase {
 
         KNNFloatVectorValues values = mock(KNNFloatVectorValues.class);
         when(values.getVector()).thenReturn(dataVectors.get(0), dataVectors.get(1), dataVectors.get(2));
-        when(values.nextDoc()).thenReturn(0, 2, 3, Integer.MAX_VALUE);
+        // stub return value when advance is called
+        when(values.advance(anyInt())).thenReturn(0,2,3,Integer.MAX_VALUE);
 
         // Execute and verify
         NestedVectorIdsKNNIterator iterator = new NestedVectorIdsKNNIterator(queryVector, values, spaceType, parentBitSet);
@@ -99,6 +101,5 @@ public class NestedVectorIdsKNNIteratorTests extends TestCase {
         assertEquals(3, iterator.nextDoc());
         assertEquals(expectedScores.get(2), iterator.score());
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
-        verify(values, never()).advance(anyInt());
     }
 }

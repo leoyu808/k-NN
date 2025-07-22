@@ -80,7 +80,7 @@ public class NestedByteVectorIdsKNNIteratorTests extends TestCase {
 
         KNNByteVectorValues values = mock(KNNByteVectorValues.class);
         when(values.getVector()).thenReturn(dataVectors.get(0), dataVectors.get(1), dataVectors.get(2));
-        when(values.nextDoc()).thenReturn(0, 2, 3, Integer.MAX_VALUE);
+        when(values.advance(anyInt())).thenReturn(0,2,3,Integer.MAX_VALUE);
 
         // Execute and verify
         NestedByteVectorIdsKNNIterator iterator = new NestedByteVectorIdsKNNIterator(queryVector, values, spaceType, parentBitSet);
@@ -89,6 +89,5 @@ public class NestedByteVectorIdsKNNIteratorTests extends TestCase {
         assertEquals(3, iterator.nextDoc());
         assertEquals(expectedScores.get(2), iterator.score());
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
-        verify(values, never()).advance(anyInt());
     }
 }

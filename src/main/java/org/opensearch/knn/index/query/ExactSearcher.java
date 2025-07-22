@@ -5,6 +5,7 @@
 
 package org.opensearch.knn.index.query;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -55,6 +56,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveTask;
 import java.util.function.Predicate;
 
+import static org.apache.lucene.index.IndexWriter.MAX_DOCS;
 import static org.opensearch.knn.common.KNNConstants.SEARCH_THREAD_POOL;
 
 @Log4j2
@@ -121,7 +123,7 @@ public class ExactSearcher {
 
     private TopDocs scoreAllDocs(LeafReaderContext leafReaderContext, ExactSearcherContext context) throws IOException {
         BitSet filterBitSet = context.getFilterBitSet();
-        BitSetIterator matchedDocs = filterBitSet != null ? new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()) : null;
+        DocIdSetIterator matchedDocs = filterBitSet != null ? new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()) : DocIdSetIterator.range(0, MAX_DOCS);
         KNNIterator iterator = getKNNIterator(leafReaderContext, context, matchedDocs);
         if (iterator == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
@@ -325,7 +327,8 @@ public class ExactSearcher {
         }
     }
 
-    private TopDocs searchTopCandidates(
+    @VisibleForTesting
+    TopDocs searchTopCandidates(
         LeafReaderContext leafReaderContext,
         ExactSearcherContext context,
         int limit,
@@ -333,7 +336,9 @@ public class ExactSearcher {
         int minDocId,
         int maxDocId
     ) throws IOException {
-        log.debug("Working Thread: {}", Thread.currentThread().getName());
+        if (maxDocId - minDocId == 0) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
         BitSet filterBitSet = context.getFilterBitSet();
         DocIdSetIterator matchedDocs = filterBitSet != null
                 ? new RangeDocIdSetIterator(new BitSetIterator(filterBitSet, context.getNumberOfMatchedDocs()), minDocId, maxDocId)

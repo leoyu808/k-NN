@@ -12,6 +12,8 @@ import org.opensearch.knn.index.vectorvalues.KNNByteVectorValues;
 
 import java.io.IOException;
 
+import static org.apache.lucene.index.IndexWriter.MAX_DOCS;
+
 /**
  * Inspired by DiversifyingChildrenFloatKnnVectorQuery in lucene
  * https://github.com/apache/lucene/blob/7b8aece125aabff2823626d5b939abf4747f63a7/lucene/join/src/java/org/apache/lucene/search/join/DiversifyingChildrenFloatKnnVectorQuery.java#L162
@@ -43,7 +45,7 @@ public class ByteVectorIdsKNNIterator implements KNNIterator {
 
     public ByteVectorIdsKNNIterator(final float[] queryVector, final KNNByteVectorValues byteVectorValues, final SpaceType spaceType)
         throws IOException {
-        this(null, queryVector, byteVectorValues, spaceType);
+        this(DocIdSetIterator.range(0, MAX_DOCS), queryVector, byteVectorValues, spaceType);
     }
 
     /**

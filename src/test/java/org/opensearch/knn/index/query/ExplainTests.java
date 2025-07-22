@@ -31,6 +31,7 @@ import org.opensearch.knn.index.vectorvalues.KNNBinaryVectorValues;
 import org.opensearch.knn.index.vectorvalues.KNNVectorValuesFactory;
 import org.opensearch.knn.indices.ModelDao;
 import org.opensearch.knn.jni.JNIService;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.mockito.ArgumentMatchers.any;
@@ -124,6 +126,15 @@ public class ExplainTests extends KNNWeightTestCase {
             when(knnBinaryVectorValues.advance(0)).thenReturn(0);
             when(knnBinaryVectorValues.getVector()).thenReturn(byteVector);
         }
+
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ForkJoinPool pool = mock(ForkJoinPool.class);
+        when(threadPool.executor(SEARCH_THREAD_POOL)).thenReturn(pool);
+        ExactSearcher.initialize(threadPool);
+        when(pool.invoke(any(ExactSearcher.ExactSearchTask.class))).thenAnswer(invocation -> {
+            ExactSearcher.ExactSearchTask task = invocation.getArgument(0);
+            return task.compute();
+        });
     }
 
     private void assertExplanation(Explanation explanation, float expectedScore, String topSearch, String... leafDescription) {
@@ -514,7 +525,6 @@ public class ExplainTests extends KNNWeightTestCase {
 
     @SneakyThrows
     public void testANNWithFilterQuery_whenFTVGreaterThanFilterId() {
-
         KNNWeight.initialize(null);
         knnSettingsMockedStatic.when(() -> KNNSettings.getFilteredExactSearchThreshold(INDEX_NAME)).thenReturn(10);
         byte[] vector = new byte[] { 1, 3 };
