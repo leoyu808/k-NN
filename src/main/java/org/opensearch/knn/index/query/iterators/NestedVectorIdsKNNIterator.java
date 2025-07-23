@@ -14,8 +14,6 @@ import org.opensearch.knn.index.vectorvalues.KNNFloatVectorValues;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.IndexWriter.MAX_DOCS;
-
 /**
  * This iterator iterates filterIdsArray to score if filter is provided else it iterates over all docs.
  * However, it dedupe docs per each parent doc
@@ -25,32 +23,32 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
     private final BitSet parentBitSet;
 
     public NestedVectorIdsKNNIterator(
-        @Nullable final DocIdSetIterator filterIdsIterator,
-        final float[] queryVector,
-        final KNNFloatVectorValues knnFloatVectorValues,
-        final SpaceType spaceType,
-        final BitSet parentBitSet
+            @Nullable final DocIdSetIterator filterIdsIterator,
+            final float[] queryVector,
+            final KNNFloatVectorValues knnFloatVectorValues,
+            final SpaceType spaceType,
+            final BitSet parentBitSet
     ) throws IOException {
         this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
     }
 
     public NestedVectorIdsKNNIterator(
-        final float[] queryVector,
-        final KNNFloatVectorValues knnFloatVectorValues,
-        final SpaceType spaceType,
-        final BitSet parentBitSet
+            final float[] queryVector,
+            final KNNFloatVectorValues knnFloatVectorValues,
+            final SpaceType spaceType,
+            final BitSet parentBitSet
     ) throws IOException {
-        this(DocIdSetIterator.range(0, MAX_DOCS), queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
+        this(null, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
     }
 
     public NestedVectorIdsKNNIterator(
-        @Nullable final DocIdSetIterator filterIdsIterator,
-        final float[] queryVector,
-        final KNNFloatVectorValues knnFloatVectorValues,
-        final SpaceType spaceType,
-        final BitSet parentBitSet,
-        final byte[] quantizedVector,
-        final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
+            @Nullable final DocIdSetIterator filterIdsIterator,
+            final float[] queryVector,
+            final KNNFloatVectorValues knnFloatVectorValues,
+            final SpaceType spaceType,
+            final BitSet parentBitSet,
+            final byte[] quantizedVector,
+            final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
     ) throws IOException {
         super(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, quantizedVector, segmentLevelQuantizationInfo);
         this.parentBitSet = parentBitSet;
@@ -64,12 +62,12 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
      */
     @Override
     public int nextDoc() throws IOException {
-        if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+        if (docId.get() == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
 
-        currentScore = Float.NEGATIVE_INFINITY;
-        int currentParent = parentBitSet.nextSetBit(docId);
+        currentScore.set(Float.NEGATIVE_INFINITY);
+        int currentParent = parentBitSet.nextSetBit(docId.get());
         int bestChild = -1;
 
         // In order to traverse all children for given parent, we have to use docId < parentId, because,
@@ -77,15 +75,16 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
         // and for doc id 5, there are three children. In that case knnVectorValues iterator will have [0, 2, 3, 4]
         // and parentBitSet will have [1,5]
         // Hence, we have to iterate till docId from knnVectorValues is less than parentId instead of till equal to parentId
-        while (docId != DocIdSetIterator.NO_MORE_DOCS && docId < currentParent) {
-            float score = computeScore();
-            if (score > currentScore) {
-                bestChild = docId;
-                currentScore = score;
+        while (docId.get() != DocIdSetIterator.NO_MORE_DOCS && docId.get() < currentParent) {
+            float score = computeScore(new float[10]);
+            if (score > currentScore.get()) {
+                bestChild = docId.get();
+                currentScore.set(score);
             }
-            docId = getNextDocId();
+            docId.set(getNextDocId());
         }
 
         return bestChild;
     }
 }
+

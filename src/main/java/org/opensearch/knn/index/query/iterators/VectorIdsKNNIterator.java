@@ -1,8 +1,3 @@
-/*
- * Copyright OpenSearch Contributors
- * SPDX-License-Identifier: Apache-2.0
- */
-
 package org.opensearch.knn.index.query.iterators;
 
 import org.apache.lucene.search.DocIdSetIterator;
@@ -14,101 +9,119 @@ import org.opensearch.knn.index.vectorvalues.KNNFloatVectorValues;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.IndexWriter.MAX_DOCS;
-
 /**
- * Inspired by DiversifyingChildrenFloatKnnVectorQuery in lucene
- * https://github.com/apache/lucene/blob/7b8aece125aabff2823626d5b939abf4747f63a7/lucene/join/src/java/org/apache/lucene/search/join/DiversifyingChildrenFloatKnnVectorQuery.java#L162
- *
- * The class is used in KNNWeight to score all docs, but, it iterates over filterIdsArray if filter is provided
+ * Thread‑safe iterator over KNN vector docs: multiple threads can call nextDoc()
+ * and each doc will be returned exactly once across all threads. Score() and
+ * docId() are maintained per‐thread.
  */
 public class VectorIdsKNNIterator implements KNNIterator {
-    protected final DocIdSetIterator filterIdsIterator;
-    protected final float[] queryVector;
+    private final Object lock = new Object();
+    private final DocIdSetIterator filterIdsIterator;
+    private final float[] queryVector;
     private final byte[] quantizedQueryVector;
-    protected final KNNFloatVectorValues knnFloatVectorValues;
-    protected final SpaceType spaceType;
-    protected float currentScore = Float.NEGATIVE_INFINITY;
-    protected int docId;
     private final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo;
+    private final KNNFloatVectorValues knnFloatVectorValues;
+    private final SpaceType spaceType;
+
+    protected final ThreadLocal<Integer> docId = ThreadLocal.withInitial(() -> -1);
+    protected final ThreadLocal<Float>   currentScore = ThreadLocal.withInitial(() -> Float.NEGATIVE_INFINITY);
 
     public VectorIdsKNNIterator(
-        @Nullable final DocIdSetIterator filterIdsIterator,
-        final float[] queryVector,
-        final KNNFloatVectorValues knnFloatVectorValues,
-        final SpaceType spaceType
-    ) throws IOException {
+            @Nullable DocIdSetIterator filterIdsIterator,
+            float[] queryVector,
+            KNNFloatVectorValues knnFloatVectorValues,
+            SpaceType spaceType
+    ) {
         this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, null, null);
     }
 
-    public VectorIdsKNNIterator(final float[] queryVector, final KNNFloatVectorValues knnFloatVectorValues, final SpaceType spaceType)
-        throws IOException {
-        this(DocIdSetIterator.range(0, MAX_DOCS), queryVector, knnFloatVectorValues, spaceType, null, null);
+    public VectorIdsKNNIterator(
+            float[] queryVector,
+            KNNFloatVectorValues knnFloatVectorValues,
+            SpaceType spaceType
+    ) {
+        this(null, queryVector, knnFloatVectorValues, spaceType, null, null);
     }
 
     public VectorIdsKNNIterator(
-        @Nullable final DocIdSetIterator filterIdsIterator,
-        final float[] queryVector,
-        final KNNFloatVectorValues knnFloatVectorValues,
-        final SpaceType spaceType,
-        final byte[] quantizedQueryVector,
-        final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
-    ) throws IOException {
+            @Nullable DocIdSetIterator filterIdsIterator,
+            float[] queryVector,
+            KNNFloatVectorValues knnFloatVectorValues,
+            SpaceType spaceType,
+            byte[] quantizedQueryVector,
+            SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
+    ) {
         this.filterIdsIterator = filterIdsIterator;
         this.queryVector = queryVector;
         this.knnFloatVectorValues = knnFloatVectorValues;
         this.spaceType = spaceType;
-        // This cannot be moved inside nextDoc() method since it will break when we have nested field, where
-        // nextDoc should already be referring to next knnVectorValues
-        this.docId = getNextDocId();
         this.quantizedQueryVector = quantizedQueryVector;
         this.segmentLevelQuantizationInfo = segmentLevelQuantizationInfo;
     }
 
     /**
-     * Advance to the next doc and update score value with score of the next doc.
-     * DocIdSetIterator.NO_MORE_DOCS is returned when there is no more docs
-     *
-     * @return next doc id
+     * Advance to the next doc and compute its score. Returns
+     * DocIdSetIterator.NO_MORE_DOCS when finished.
      */
     @Override
     public int nextDoc() throws IOException {
+        int doc;
+        float[] vectorCopy;
 
-        if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-            return DocIdSetIterator.NO_MORE_DOCS;
+        // 1) Under lock, pull the next doc, advance the vector reader, and copy the vector.
+        synchronized (lock) {
+            doc = getNextDocId();
+            if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                docId.set(DocIdSetIterator.NO_MORE_DOCS);
+                currentScore.set(Float.NEGATIVE_INFINITY);
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            // grab a copy of the underlying vector so we can score it outside the lock
+            float[] raw = knnFloatVectorValues.getVector();
+            vectorCopy = raw.clone();
         }
-        currentScore = computeScore();
-        int currentDocId = docId;
-        docId = getNextDocId();
-        return currentDocId;
+
+        // 3) Publish to thread‑local state
+        docId.set(doc);
+        currentScore.set(computeScore(vectorCopy));
+        return doc;
     }
 
-    @Override
-    public float score() {
-        return currentScore;
-    }
-
-    protected float computeScore() throws IOException {
-        final float[] vector = knnFloatVectorValues.getVector();
+    protected float computeScore(float[] vectorCopy) throws IOException {
         if (segmentLevelQuantizationInfo != null && quantizedQueryVector != null) {
-            byte[] quantizedVector = SegmentLevelQuantizationUtil.quantizeVector(vector, segmentLevelQuantizationInfo);
+            byte[] quantizedVector = SegmentLevelQuantizationUtil.quantizeVector(vectorCopy, segmentLevelQuantizationInfo);
             return SpaceType.HAMMING.getKnnVectorSimilarityFunction().compare(quantizedQueryVector, quantizedVector);
         } else {
             // Calculates a similarity score between the two vectors with a specified function. Higher similarity
             // scores correspond to closer vectors.
-            return spaceType.getKnnVectorSimilarityFunction().compare(queryVector, vector);
+            return spaceType.getKnnVectorSimilarityFunction().compare(queryVector, vectorCopy);
         }
     }
 
+    /** @return the score for the doc most recently returned by nextDoc() on this thread */
+    @Override
+    public float score() {
+        return currentScore.get();
+    }
+
+    /** @return the docID for the doc most recently returned by nextDoc() on this thread */
+    public int docID() {
+        return docId.get();
+    }
+
+    /**
+     * Fetch the next doc from either the filterIdsIterator or
+     * the raw knnFloatVectorValues.
+     */
     protected int getNextDocId() throws IOException {
-        int nextDocID = this.filterIdsIterator.nextDoc();
-        // For filter case, advance vector values to corresponding doc id from filter bit set
-        if (nextDocID != DocIdSetIterator.NO_MORE_DOCS) {
-            int ret = knnFloatVectorValues.advance(nextDocID);
-            if (ret > nextDocID) {
-                nextDocID = this.filterIdsIterator.advance(ret);
-            }
+        if (filterIdsIterator == null) {
+            return knnFloatVectorValues.nextDoc();
         }
-        return nextDocID;
+        int next = filterIdsIterator.nextDoc();
+        if (next != DocIdSetIterator.NO_MORE_DOCS) {
+            knnFloatVectorValues.advance(next);
+        }
+        return next;
     }
 }
+

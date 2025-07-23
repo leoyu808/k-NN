@@ -21,7 +21,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BitSet;
 import org.opensearch.common.StopWatch;
 import org.opensearch.knn.index.KNNSettings;
 import org.opensearch.knn.index.query.ExactSearcher;
@@ -135,11 +134,11 @@ public class NativeEngineKnnVectorQuery extends Query {
     }
 
     private List<PerLeafResult> retrieveAll(
-        final IndexSearcher indexSearcher,
-        List<LeafReaderContext> leafReaderContexts,
-        KNNWeight knnWeight,
-        List<PerLeafResult> perLeafResults,
-        boolean useQuantizedVectors
+            final IndexSearcher indexSearcher,
+            List<LeafReaderContext> leafReaderContexts,
+            KNNWeight knnWeight,
+            List<PerLeafResult> perLeafResults,
+            boolean useQuantizedVectors
     ) throws IOException {
         List<Callable<PerLeafResult>> nestedQueryTasks = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < perLeafResults.size(); i++) {
@@ -151,29 +150,27 @@ public class NativeEngineKnnVectorQuery extends Query {
                     return perLeafResult;
                 }
                 Set<Integer> docIds = Arrays.stream(perLeafResult.getResult().scoreDocs)
-                    .map(scoreDoc -> scoreDoc.doc)
-                    .collect(Collectors.toSet());
+                        .map(scoreDoc -> scoreDoc.doc)
+                        .collect(Collectors.toSet());
                 DocIdSetIterator allSiblings = queryUtils.getAllSiblings(
-                    leafReaderContext,
-                    docIds,
-                    knnQuery.getParentsFilter(),
-                    perLeafResult.getFilterBits()
+                        leafReaderContext,
+                        docIds,
+                        knnQuery.getParentsFilter(),
+                        perLeafResult.getFilterBits()
                 );
 
-                // change here
-                BitSet matchedDocs = BitSet.of(allSiblings, leafReaderContext.reader().maxDoc());
                 final ExactSearcher.ExactSearcherContext exactSearcherContext = ExactSearcher.ExactSearcherContext.builder()
-                    .filterBitSet(matchedDocs)
-                    .numberOfMatchedDocs(allSiblings.cost())
-                    // setting to false because in re-scoring we want to do exact search on full precision vectors
-                    .useQuantizedVectorsForSearch(useQuantizedVectors)
-                    .k((int) allSiblings.cost())
-                    .field(knnQuery.getField())
-                    .radius(knnQuery.getRadius())
-                    .floatQueryVector(knnQuery.getQueryVector())
-                    .byteQueryVector(knnQuery.getByteQueryVector())
-                    .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch())
-                    .build();
+                        .matchedDocsIterator(allSiblings)
+                        .numberOfMatchedDocs(allSiblings.cost())
+                        // setting to false because in re-scoring we want to do exact search on full precision vectors
+                        .useQuantizedVectorsForSearch(useQuantizedVectors)
+                        .k((int) allSiblings.cost())
+                        .field(knnQuery.getField())
+                        .radius(knnQuery.getRadius())
+                        .floatQueryVector(knnQuery.getQueryVector())
+                        .byteQueryVector(knnQuery.getByteQueryVector())
+                        .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch())
+                        .build();
                 TopDocs rescoreResult = knnWeight.exactSearch(leafReaderContext, exactSearcherContext);
                 return new PerLeafResult(perLeafResult.getFilterBits(), rescoreResult);
             });
@@ -182,10 +179,10 @@ public class NativeEngineKnnVectorQuery extends Query {
     }
 
     private List<PerLeafResult> doSearch(
-        final IndexSearcher indexSearcher,
-        List<LeafReaderContext> leafReaderContexts,
-        KNNWeight knnWeight,
-        int k
+            final IndexSearcher indexSearcher,
+            List<LeafReaderContext> leafReaderContexts,
+            KNNWeight knnWeight,
+            int k
     ) throws IOException {
         List<Callable<PerLeafResult>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext leafReaderContext : leafReaderContexts) {
@@ -195,11 +192,11 @@ public class NativeEngineKnnVectorQuery extends Query {
     }
 
     private List<PerLeafResult> doRescore(
-        final IndexSearcher indexSearcher,
-        List<LeafReaderContext> leafReaderContexts,
-        KNNWeight knnWeight,
-        List<PerLeafResult> perLeafResults,
-        int k
+            final IndexSearcher indexSearcher,
+            List<LeafReaderContext> leafReaderContexts,
+            KNNWeight knnWeight,
+            List<PerLeafResult> perLeafResults,
+            int k
     ) throws IOException {
         List<Callable<PerLeafResult>> rescoreTasks = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < perLeafResults.size(); i++) {
@@ -210,20 +207,19 @@ public class NativeEngineKnnVectorQuery extends Query {
                 if (perLeafeResult.getResult().scoreDocs.length == 0) {
                     return perLeafeResult;
                 }
-                DocIdSetIterator matchedDocsIterator = new TopDocsDISI(perLeafeResult.getResult());
-                BitSet matchedDocs = BitSet.of(matchedDocsIterator, leafReaderContext.reader().maxDoc());
+                DocIdSetIterator matchedDocs = new TopDocsDISI(perLeafeResult.getResult());
                 final ExactSearcher.ExactSearcherContext exactSearcherContext = ExactSearcher.ExactSearcherContext.builder()
-                    .filterBitSet(matchedDocs)
-                    .numberOfMatchedDocs(perLeafResults.get(finalI).getResult().scoreDocs.length)
-                    // setting to false because in re-scoring we want to do exact search on full precision vectors
-                    .useQuantizedVectorsForSearch(false)
-                    .k(k)
-                    .radius(knnQuery.getRadius())
-                    .field(knnQuery.getField())
-                    .floatQueryVector(knnQuery.getQueryVector())
-                    .byteQueryVector(knnQuery.getByteQueryVector())
-                    .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch())
-                    .build();
+                        .matchedDocsIterator(matchedDocs)
+                        .numberOfMatchedDocs(perLeafResults.get(finalI).getResult().scoreDocs.length)
+                        // setting to false because in re-scoring we want to do exact search on full precision vectors
+                        .useQuantizedVectorsForSearch(false)
+                        .k(k)
+                        .radius(knnQuery.getRadius())
+                        .field(knnQuery.getField())
+                        .floatQueryVector(knnQuery.getQueryVector())
+                        .byteQueryVector(knnQuery.getByteQueryVector())
+                        .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch())
+                        .build();
                 TopDocs rescoreResult = knnWeight.exactSearch(leafReaderContext, exactSearcherContext);
                 return new PerLeafResult(perLeafeResult.getFilterBits(), rescoreResult);
             });

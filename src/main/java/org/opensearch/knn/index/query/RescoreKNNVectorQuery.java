@@ -19,7 +19,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BitSet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StopWatch;
 import org.opensearch.knn.index.query.common.QueryUtils;
@@ -93,27 +92,21 @@ public class RescoreKNNVectorQuery extends Query {
         return indexSearcher.getTaskExecutor().invokeAll(rescoreTasks).toArray(TopDocs[]::new);
     }
 
-    private TopDocs searchLeaf(
-        ExactSearcher searcher,
-        Weight weight,
-        int k,
-        LeafReaderContext leafReaderContext
-    ) throws IOException {
+    private TopDocs searchLeaf(ExactSearcher searcher, Weight weight, int k, LeafReaderContext leafReaderContext) throws IOException {
         Scorer scorer = weight.scorer(leafReaderContext);
         if (scorer == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
         DocIdSetIterator iterator = scorer.iterator();
-        BitSet matchedDocs = BitSet.of(iterator, leafReaderContext.reader().maxDoc());
         final ExactSearcher.ExactSearcherContext exactSearcherContext = ExactSearcher.ExactSearcherContext.builder()
-            .filterBitSet(matchedDocs)
-            .numberOfMatchedDocs(iterator.cost())
-            // setting to false because in re-scoring we want to do exact search on full precision vectors
-            .useQuantizedVectorsForSearch(false)
-            .k(k)
-            .field(field)
-            .floatQueryVector(queryVector)
-            .build();
+                .matchedDocsIterator(iterator)
+                .numberOfMatchedDocs(iterator.cost())
+                // setting to false because in re-scoring we want to do exact search on full precision vectors
+                .useQuantizedVectorsForSearch(false)
+                .k(k)
+                .field(field)
+                .floatQueryVector(queryVector)
+                .build();
         TopDocs results = searcher.searchLeaf(leafReaderContext, exactSearcherContext);
         if (leafReaderContext.docBase > 0) {
             for (ScoreDoc scoreDoc : results.scoreDocs) {
@@ -134,11 +127,11 @@ public class RescoreKNNVectorQuery extends Query {
         if (log.isDebugEnabled() && stopWatch != null) {
             stopWatch.stop();
             log.debug(
-                "[{}] shard: [{}], field: [{}], time in nanos:[{}] ",
-                this.getClass().getSimpleName(),
-                shardId,
-                field,
-                stopWatch.totalTime().nanos()
+                    "[{}] shard: [{}], field: [{}], time in nanos:[{}] ",
+                    this.getClass().getSimpleName(),
+                    shardId,
+                    field,
+                    stopWatch.totalTime().nanos()
             );
         }
     }
@@ -146,17 +139,17 @@ public class RescoreKNNVectorQuery extends Query {
     @Override
     public String toString(String field) {
         return this.getClass().getSimpleName()
-            + "innerQuery="
-            + innerQuery
-            + "field="
-            + field
-            + ", vector="
-            + queryVector
-            + ", k="
-            + k
-            + ", shardId="
-            + shardId
-            + "]";
+                + "innerQuery="
+                + innerQuery
+                + "field="
+                + field
+                + ", vector="
+                + queryVector
+                + ", k="
+                + k
+                + ", shardId="
+                + shardId
+                + "]";
     }
 
     @Override
@@ -171,10 +164,10 @@ public class RescoreKNNVectorQuery extends Query {
         }
         RescoreKNNVectorQuery other = (RescoreKNNVectorQuery) obj;
         return Objects.equals(innerQuery, other.innerQuery)
-            && Objects.equals(queryVector, other.queryVector)
-            && Objects.equals(field, other.field)
-            && k == other.k
-            && shardId == other.shardId;
+                && Objects.equals(queryVector, other.queryVector)
+                && Objects.equals(field, other.field)
+                && k == other.k
+                && shardId == other.shardId;
     }
 
     @Override
