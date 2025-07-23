@@ -73,11 +73,7 @@ public class VectorIdsKNNIterator implements KNNIterator {
         if (docId == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
-        if (filterIdsIterator == null) {
-            docId = knnFloatVectorValues.nextDoc();
-            return docId;
-        }
-        docId = this.filterIdsIterator.nextDoc();
+        docId = (filterIdsIterator == null) ? knnFloatVectorValues.nextDoc() : this.filterIdsIterator.nextDoc();
         if (docId != DocIdSetIterator.NO_MORE_DOCS) {
             knnFloatVectorValues.advance(docId);
             vector.set(knnFloatVectorValues.getVector());
