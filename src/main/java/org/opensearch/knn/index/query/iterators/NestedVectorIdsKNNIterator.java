@@ -28,7 +28,7 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
             final KNNFloatVectorValues knnFloatVectorValues,
             final SpaceType spaceType,
             final BitSet parentBitSet
-    ) throws IOException {
+    ) {
         this(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
     }
 
@@ -37,7 +37,7 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
             final KNNFloatVectorValues knnFloatVectorValues,
             final SpaceType spaceType,
             final BitSet parentBitSet
-    ) throws IOException {
+    ) {
         this(null, queryVector, knnFloatVectorValues, spaceType, parentBitSet, null, null);
     }
 
@@ -49,7 +49,7 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
             final BitSet parentBitSet,
             final byte[] quantizedVector,
             final SegmentLevelQuantizationInfo segmentLevelQuantizationInfo
-    ) throws IOException {
+    ) {
         super(filterIdsIterator, queryVector, knnFloatVectorValues, spaceType, quantizedVector, segmentLevelQuantizationInfo);
         this.parentBitSet = parentBitSet;
     }
@@ -61,30 +61,8 @@ public class NestedVectorIdsKNNIterator extends VectorIdsKNNIterator {
      * @return next best child doc id
      */
     @Override
-    public int nextDoc() throws IOException {
-        if (docId.get() == DocIdSetIterator.NO_MORE_DOCS) {
-            return DocIdSetIterator.NO_MORE_DOCS;
-        }
-
-        currentScore.set(Float.NEGATIVE_INFINITY);
-        int currentParent = parentBitSet.nextSetBit(docId.get());
-        int bestChild = -1;
-
-        // In order to traverse all children for given parent, we have to use docId < parentId, because,
-        // kNNVectorValues will not have parent id since DocId is unique per segment. For ex: let's say for doc id 1, there is one child
-        // and for doc id 5, there are three children. In that case knnVectorValues iterator will have [0, 2, 3, 4]
-        // and parentBitSet will have [1,5]
-        // Hence, we have to iterate till docId from knnVectorValues is less than parentId instead of till equal to parentId
-        while (docId.get() != DocIdSetIterator.NO_MORE_DOCS && docId.get() < currentParent) {
-            float score = computeScore(new float[10]);
-            if (score > currentScore.get()) {
-                bestChild = docId.get();
-                currentScore.set(score);
-            }
-            docId.set(getNextDocId());
-        }
-
-        return bestChild;
+    public synchronized int nextDoc() throws IOException {
+        return 0;
     }
 }
 
