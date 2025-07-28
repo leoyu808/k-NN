@@ -143,6 +143,7 @@ public class KNN80DocValuesProducer extends DocValuesProducer {
                         .getQuantizationParams(fieldInfo, segmentReadState.segmentInfo.getVersion());
                     cacheManager.get(
                         new NativeMemoryEntryContext.IndexEntryContext(
+                            segmentReadState.segmentInfo,
                             segmentReadState.segmentInfo.dir,
                             cacheKey,
                             NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
@@ -152,7 +153,7 @@ public class KNN80DocValuesProducer extends DocValuesProducer {
                         true
                     );
                 } catch (ExecutionException e) {
-                    throw new RuntimeException(e);
+
                 }
             }
         }
