@@ -81,7 +81,6 @@ public class DefaultKNNWeight extends KNNWeight {
         try {
             indexAllocation = nativeMemoryCacheManager.get(
                 new NativeMemoryEntryContext.IndexEntryContext(
-                    reader.getSegmentInfo().info,
                     reader.directory(),
                     cacheKey,
                     NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),

@@ -87,9 +87,6 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
     public static class IndexEntryContext extends NativeMemoryEntryContext<NativeMemoryAllocation.IndexAllocation> {
 
         @Getter
-        private final SegmentInfo segmentInfo;
-
-        @Getter
         private final Directory directory;
         private final NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy;
         @Getter
@@ -121,14 +118,13 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
          * @param openSearchIndexName Opensearch index associated with index
          */
         public IndexEntryContext(
-            SegmentInfo segmentInfo,
             Directory directory,
             String vectorIndexCacheKey,
             NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy,
             Map<String, Object> parameters,
             String openSearchIndexName
         ) {
-            this(segmentInfo, directory, vectorIndexCacheKey, indexLoadStrategy, parameters, openSearchIndexName, null);
+            this(directory, vectorIndexCacheKey, indexLoadStrategy, parameters, openSearchIndexName, null);
         }
 
         /**
@@ -142,7 +138,6 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
          * @param modelId model to be loaded. If none available, pass null
          */
         public IndexEntryContext(
-            SegmentInfo segmentInfo,
             Directory directory,
             String vectorIndexCacheKey,
             NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy,
@@ -151,7 +146,6 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
             String modelId
         ) {
             super(vectorIndexCacheKey);
-            this.segmentInfo = segmentInfo;
             this.directory = directory;
             this.indexLoadStrategy = indexLoadStrategy;
             this.openSearchIndexName = openSearchIndexName;
