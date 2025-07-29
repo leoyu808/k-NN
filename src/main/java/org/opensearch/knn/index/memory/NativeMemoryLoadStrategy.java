@@ -95,7 +95,7 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
                     indexEntryContext.getParameters(),
                     knnEngine
                 );
-                return createIndexAllocation(indexEntryContext, knnEngine, indexAddress, indexSizeKb, vectorFileName);
+                return createIndexAllocation(indexEntryContext, knnEngine, indexAddress, indexSizeKb, vectorFileName, directory);
             }
         }
 
@@ -104,7 +104,8 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
             final KNNEngine knnEngine,
             final long indexAddress,
             final int indexSizeKb,
-            final String vectorFileName
+            final String vectorFileName,
+            final Directory directory
         ) {
             SharedIndexState sharedIndexState = null;
             String modelId = indexEntryContext.getModelId();
@@ -122,7 +123,8 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
                 vectorFileName,
                 indexEntryContext.getOpenSearchIndexName(),
                 sharedIndexState,
-                IndexUtil.isBinaryIndex(knnEngine, indexEntryContext.getParameters())
+                IndexUtil.isBinaryIndex(knnEngine, indexEntryContext.getParameters()),
+                directory
             );
         }
 

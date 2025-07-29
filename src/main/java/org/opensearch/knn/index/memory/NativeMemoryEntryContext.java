@@ -27,6 +27,7 @@ import org.opensearch.knn.index.store.IndexInputWithBuffer;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 
@@ -203,11 +204,11 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
 
         @Override
         public NativeMemoryAllocation.IndexAllocation load() throws IOException {
-            try {
-                directory.createOutput(IndexFileNames.segmentFileName(key, "", "mem"), IOContext.READONCE);
-            }
-            catch (FileAlreadyExistsException e) {
-                log.info("File already exists: {}", IndexFileNames.segmentFileName(segmentInfo.name, "", "mem"));
+            final String vectorFileName = NativeMemoryCacheKeyHelper.extractVectorIndexFileName(this.getKey());
+            final Directory directory = this.getDirectory();
+            final String markerFileName = IndexFileNames.segmentFileName(vectorFileName, "", "mem");
+            if (!Arrays.asList(directory.listAll()).contains(markerFileName)) {
+                directory.createOutput(markerFileName, IOContext.DEFAULT);
             }
             if (!isIndexGraphFileOpened()) {
                 throw new IllegalStateException("Index graph file is not open");

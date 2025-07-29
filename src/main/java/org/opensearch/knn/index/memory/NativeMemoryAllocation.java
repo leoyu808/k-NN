@@ -13,7 +13,10 @@ package org.opensearch.knn.index.memory;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.opensearch.knn.common.featureflags.KNNFeatureFlags;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.knn.index.VectorDataType;
@@ -22,6 +25,8 @@ import org.opensearch.knn.index.query.KNNWeight;
 import org.opensearch.knn.jni.JNIService;
 import org.opensearch.knn.index.engine.KNNEngine;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -120,6 +125,9 @@ public interface NativeMemoryAllocation {
         private final SharedIndexState sharedIndexState;
         @Getter
         private final boolean isBinaryIndex;
+        @Getter
+        private final Directory directory;
+
         private final RefCountedReleasable<IndexAllocation> refCounted;
 
         /**
@@ -138,9 +146,10 @@ public interface NativeMemoryAllocation {
             int sizeKb,
             KNNEngine knnEngine,
             String vectorFileName,
-            String openSearchIndexName
+            String openSearchIndexName,
+            Directory directory
         ) {
-            this(executorService, memoryAddress, sizeKb, knnEngine, vectorFileName, openSearchIndexName, null, false);
+            this(executorService, memoryAddress, sizeKb, knnEngine, vectorFileName, openSearchIndexName, null, false, directory);
         }
 
         /**
@@ -162,7 +171,8 @@ public interface NativeMemoryAllocation {
             String vectorFileName,
             String openSearchIndexName,
             SharedIndexState sharedIndexState,
-            boolean isBinaryIndex
+            boolean isBinaryIndex,
+            Directory directory
         ) {
             this.executor = executorService;
             this.closed = false;
@@ -175,6 +185,7 @@ public interface NativeMemoryAllocation {
             this.sharedIndexState = sharedIndexState;
             this.isBinaryIndex = isBinaryIndex;
             this.refCounted = new RefCountedReleasable<>("IndexAllocation-Reference", this, this::closeInternal);
+            this.directory = directory;
         }
 
         protected void closeInternal() {
@@ -198,6 +209,14 @@ public interface NativeMemoryAllocation {
 
         @Override
         public void close() {
+            try {
+                final String markerFileName = IndexFileNames.segmentFileName(vectorFileName, "", "mem");
+                if (Arrays.asList(directory.listAll()).contains(markerFileName)) {
+                    directory.deleteFile(markerFileName);
+                }
+            } catch (IOException e) {
+
+            }
             if (!closed && refCounted.refCount() > 0) {
                 refCounted.close();
             }
