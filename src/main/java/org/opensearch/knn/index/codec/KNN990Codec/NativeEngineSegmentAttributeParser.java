@@ -76,7 +76,6 @@ public class NativeEngineSegmentAttributeParser {
         }
         SegmentInfo segmentInfo = segmentWriteState.segmentInfo;
         String indexName = mapperService.index().getName();
-        segmentInfo.putAttribute(INDEX_NAME, indexName);
         segmentInfo.putAttribute(WARMUP_ENABLED, TRUE);
         if (segmentWriteState.fieldInfos != null) {
             final Set<String> fieldsForMemoryOptimizedSearch = StreamSupport.stream(segmentWriteState.fieldInfos.spliterator(), false)

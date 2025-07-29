@@ -16,7 +16,6 @@ import lombok.Setter;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.opensearch.knn.common.featureflags.KNNFeatureFlags;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.knn.index.VectorDataType;
@@ -126,7 +125,6 @@ public interface NativeMemoryAllocation {
         @Getter
         private final boolean isBinaryIndex;
         @Getter
-        private final Directory directory;
 
         private final RefCountedReleasable<IndexAllocation> refCounted;
 
@@ -146,10 +144,9 @@ public interface NativeMemoryAllocation {
             int sizeKb,
             KNNEngine knnEngine,
             String vectorFileName,
-            String openSearchIndexName,
-            Directory directory
+            String openSearchIndexName
         ) {
-            this(executorService, memoryAddress, sizeKb, knnEngine, vectorFileName, openSearchIndexName, null, false, directory);
+            this(executorService, memoryAddress, sizeKb, knnEngine, vectorFileName, openSearchIndexName, null, false);
         }
 
         /**
@@ -171,8 +168,7 @@ public interface NativeMemoryAllocation {
             String vectorFileName,
             String openSearchIndexName,
             SharedIndexState sharedIndexState,
-            boolean isBinaryIndex,
-            Directory directory
+            boolean isBinaryIndex
         ) {
             this.executor = executorService;
             this.closed = false;
@@ -185,7 +181,6 @@ public interface NativeMemoryAllocation {
             this.sharedIndexState = sharedIndexState;
             this.isBinaryIndex = isBinaryIndex;
             this.refCounted = new RefCountedReleasable<>("IndexAllocation-Reference", this, this::closeInternal);
-            this.directory = directory;
         }
 
         protected void closeInternal() {
@@ -209,14 +204,6 @@ public interface NativeMemoryAllocation {
 
         @Override
         public void close() {
-            try {
-                final String markerFileName = IndexFileNames.segmentFileName(vectorFileName, "", "mem");
-                if (Arrays.asList(directory.listAll()).contains(markerFileName)) {
-                    directory.deleteFile(markerFileName);
-                }
-            } catch (IOException e) {
-
-            }
             if (!closed && refCounted.refCount() > 0) {
                 refCounted.close();
             }

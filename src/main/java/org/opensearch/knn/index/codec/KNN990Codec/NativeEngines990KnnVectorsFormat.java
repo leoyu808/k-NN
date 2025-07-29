@@ -12,14 +12,20 @@
 package org.opensearch.knn.index.codec.KNN990Codec;
 
 import lombok.extern.log4j.Log4j2;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.knn.index.KNNSettings;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexBuildStrategyFactory;
@@ -27,7 +33,10 @@ import org.opensearch.knn.index.engine.KNNEngine;
 import org.opensearch.knn.index.util.IndexUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Optional;
+
+import static org.opensearch.knn.index.codec.KNN990Codec.NativeEngineSegmentAttributeParser.INDEX_NAME;
 
 /**
  * This is a Vector format that will be used for Native engines like Faiss and Nmslib for reading and writing vector
@@ -78,9 +87,11 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
      */
     @Override
     public KnnVectorsWriter fieldsWriter(final SegmentWriteState state) throws IOException {
-        if (IndexUtil.isWarmUpEnabledForIndex(mapperService)) {
-            NativeEngineSegmentAttributeParser.addWarmupSegmentInfoAttribute(mapperService.get(), state);
-        }
+        state.segmentInfo.putAttribute(INDEX_NAME, mapperService.get().index().getName());
+        IndexOutput output = state.directory.createOutput(IndexFileNames.segmentFileName(state.segmentInfo.name, "", "mem"), state.context);
+        CodecUtil.writeIndexHeader(output, "NativeEngines990KnnVectors", 0, state.segmentInfo.getId(), state.segmentSuffix);
+        CodecUtil.writeFooter(output);
+        output.close();
         return new NativeEngines990KnnVectorsWriter(
             state,
             flatVectorsFormat.fieldsWriter(state),

@@ -123,8 +123,7 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
                 vectorFileName,
                 indexEntryContext.getOpenSearchIndexName(),
                 sharedIndexState,
-                IndexUtil.isBinaryIndex(knnEngine, indexEntryContext.getParameters()),
-                directory
+                IndexUtil.isBinaryIndex(knnEngine, indexEntryContext.getParameters())
             );
         }
 

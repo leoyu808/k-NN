@@ -19,6 +19,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.KnnCollector;
@@ -50,12 +51,15 @@ import org.opensearch.knn.quantization.models.quantizationState.QuantizationStat
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.knn.common.KNNConstants.VECTOR_DATA_TYPE_FIELD;
+import static org.opensearch.knn.index.codec.KNN990Codec.NativeEngineSegmentAttributeParser.INDEX_NAME;
 import static org.opensearch.knn.index.mapper.KNNVectorFieldMapper.KNN_FIELD;
 import static org.opensearch.knn.index.util.IndexUtil.getParametersAtLoading;
 
@@ -74,7 +78,7 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
     private final List<String> cacheKeys;
     private volatile Map<String, VectorSearcherHolder> vectorSearchers;
 
-    public NativeEngines990KnnVectorsReader(final SegmentReadState state, final FlatVectorsReader flatVectorsReader) {
+    public NativeEngines990KnnVectorsReader(final SegmentReadState state, final FlatVectorsReader flatVectorsReader) throws IOException {
         this.flatVectorsReader = flatVectorsReader;
         this.segmentReadState = state;
         this.cacheKeys = getVectorCacheKeysFromSegmentReaderState(state);
@@ -382,50 +386,37 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
         return null;
     }
 
-    private void warmUpSegmentIfRequired() {
+    private void warmUpSegmentIfRequired() throws IOException {
         SegmentInfo segmentInfo = segmentReadState.segmentInfo;
-        if (NativeEngineSegmentAttributeParser.parseWarmup(segmentInfo)) {
-            Set<String> memoryOptimizedFieldNames = NativeEngineSegmentAttributeParser.parseMemoryOptimizedFields(segmentInfo);
-            String indexName = NativeEngineSegmentAttributeParser.parseIndexName(segmentInfo);
-            for (final FieldInfo fieldInfo : segmentReadState.fieldInfos) {
-                if (memoryOptimizedFieldNames.contains(fieldInfo.getName())) {
-                    String dataTypeStr = fieldInfo.getAttribute(VECTOR_DATA_TYPE_FIELD);
-                    if (dataTypeStr == null) {
-                        continue;
-                    }
-                    try {
-                        boolean isFloat = VectorDataType.get(dataTypeStr) == VectorDataType.FLOAT;
-                        trySearchWithMemoryOptimizedSearch(fieldInfo.getName(), null, null, null, isFloat);
-                    } catch (Exception e) {
-                        log.warn("Failed to warm up memory optimized field: {}", fieldInfo.getName());
-                    }
-                } else {
-                    final String vectorIndexFileName = KNNCodecUtil.getNativeEngineFileFromFieldInfo(fieldInfo, segmentInfo);
-                    if (vectorIndexFileName == null) {
-                        continue;
-                    }
-                    final String cacheKey = NativeMemoryCacheKeyHelper.constructCacheKey(vectorIndexFileName, segmentInfo);
-                    final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
-                    try {
-                        final String spaceTypeName = fieldInfo.attributes().getOrDefault(KNNConstants.SPACE_TYPE, SpaceType.L2.getValue());
-                        final SpaceType spaceType = SpaceType.getSpace(spaceTypeName);
-                        final KNNEngine knnEngine = FieldInfoExtractor.extractKNNEngine(fieldInfo);
-                        final VectorDataType vectorDataType = FieldInfoExtractor.extractVectorDataType(fieldInfo);
-                        final QuantizationParams quantizationParams = QuantizationService.getInstance()
+        String indexName = segmentInfo.getAttribute(INDEX_NAME);
+        Set<String> fileNames = new HashSet<>(Arrays.asList(segmentInfo.dir.listAll()));
+        for (final FieldInfo fieldInfo : segmentReadState.fieldInfos) {
+            final String vectorIndexFileName = KNNCodecUtil.getNativeEngineFileFromFieldInfo(fieldInfo, segmentInfo);
+            if (vectorIndexFileName == null) {
+                continue;
+            }
+            if (fileNames.contains(IndexFileNames.segmentFileName(vectorIndexFileName, "", "mem"))) {
+                final String cacheKey = NativeMemoryCacheKeyHelper.constructCacheKey(vectorIndexFileName, segmentInfo);
+                final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
+                try {
+                    final String spaceTypeName = fieldInfo.attributes().getOrDefault(KNNConstants.SPACE_TYPE, SpaceType.L2.getValue());
+                    final SpaceType spaceType = SpaceType.getSpace(spaceTypeName);
+                    final KNNEngine knnEngine = FieldInfoExtractor.extractKNNEngine(fieldInfo);
+                    final VectorDataType vectorDataType = FieldInfoExtractor.extractVectorDataType(fieldInfo);
+                    final QuantizationParams quantizationParams = QuantizationService.getInstance()
                             .getQuantizationParams(fieldInfo, segmentInfo.getVersion());
-                        cacheManager.get(
-                            new NativeMemoryEntryContext.IndexEntryContext(
-                                segmentInfo.dir,
-                                cacheKey,
-                                NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
-                                getParametersAtLoading(spaceType, knnEngine, indexName, vectorDataType, quantizationParams),
-                                indexName
-                            ),
-                            true
-                        );
-                    } catch (Exception e) {
-                        log.warn("Failed to warm up field: {}", fieldInfo.getName());
-                    }
+                    cacheManager.get(
+                        new NativeMemoryEntryContext.IndexEntryContext(
+                            segmentInfo.dir,
+                            cacheKey,
+                            NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
+                            getParametersAtLoading(spaceType, knnEngine, indexName, vectorDataType, quantizationParams),
+                            indexName
+                        ),
+                        true
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to warm up field: {}", fieldInfo.getName());
                 }
             }
         }

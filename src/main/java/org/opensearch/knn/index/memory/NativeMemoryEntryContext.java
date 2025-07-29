@@ -14,7 +14,6 @@ package org.opensearch.knn.index.memory;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -26,7 +25,6 @@ import org.opensearch.knn.index.VectorDataType;
 import org.opensearch.knn.index.store.IndexInputWithBuffer;
 
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
@@ -198,12 +196,6 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
 
         @Override
         public NativeMemoryAllocation.IndexAllocation load() throws IOException {
-            final String vectorFileName = NativeMemoryCacheKeyHelper.extractVectorIndexFileName(this.getKey());
-            final Directory directory = this.getDirectory();
-            final String markerFileName = IndexFileNames.segmentFileName(vectorFileName, "", "mem");
-            if (!Arrays.asList(directory.listAll()).contains(markerFileName)) {
-                directory.createOutput(markerFileName, IOContext.DEFAULT);
-            }
             if (!isIndexGraphFileOpened()) {
                 throw new IllegalStateException("Index graph file is not open");
             }
