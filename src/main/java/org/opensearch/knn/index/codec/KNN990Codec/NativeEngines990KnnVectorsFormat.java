@@ -20,11 +20,14 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.knn.index.KNNSettings;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexBuildStrategyFactory;
 import org.opensearch.knn.index.engine.KNNEngine;
+import org.opensearch.knn.index.util.IndexUtil;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * This is a Vector format that will be used for Native engines like Faiss and Nmslib for reading and writing vector
@@ -37,6 +40,7 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
     private static final String FORMAT_NAME = "NativeEngines990KnnVectorsFormat";
     private static int approximateThreshold;
     private final NativeIndexBuildStrategyFactory nativeIndexBuildStrategyFactory;
+    private final Optional<MapperService> mapperService;
 
     public NativeEngines990KnnVectorsFormat() {
         this(new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer()));
@@ -51,18 +55,20 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
     }
 
     public NativeEngines990KnnVectorsFormat(final FlatVectorsFormat flatVectorsFormat, int approximateThreshold) {
-        this(flatVectorsFormat, approximateThreshold, new NativeIndexBuildStrategyFactory());
+        this(flatVectorsFormat, approximateThreshold, new NativeIndexBuildStrategyFactory(), Optional.empty());
     }
 
     public NativeEngines990KnnVectorsFormat(
         final FlatVectorsFormat flatVectorsFormat,
         int approximateThreshold,
-        final NativeIndexBuildStrategyFactory nativeIndexBuildStrategyFactory
+        final NativeIndexBuildStrategyFactory nativeIndexBuildStrategyFactory,
+        final Optional<MapperService> mapperService
     ) {
         super(FORMAT_NAME);
         NativeEngines990KnnVectorsFormat.flatVectorsFormat = flatVectorsFormat;
         NativeEngines990KnnVectorsFormat.approximateThreshold = approximateThreshold;
         this.nativeIndexBuildStrategyFactory = nativeIndexBuildStrategyFactory;
+        this.mapperService = mapperService;
     }
 
     /**
@@ -72,6 +78,9 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
      */
     @Override
     public KnnVectorsWriter fieldsWriter(final SegmentWriteState state) throws IOException {
+        if (IndexUtil.isWarmUpEnabledForIndex(mapperService)) {
+            NativeEngineSegmentAttributeParser.addWarmupSegmentInfoAttribute(mapperService.get(), state);
+        }
         return new NativeEngines990KnnVectorsWriter(
             state,
             flatVectorsFormat.fieldsWriter(state),
