@@ -143,12 +143,12 @@ public class ExactSearcher {
             @NonNull Predicate<Float> filterScore
     ) throws IOException {
         long THRESHOLD = 250_000;
-        int partitions = Math.toIntExact(context.getNumberOfMatchedDocs() / THRESHOLD + 1);
-        List<Callable<TopDocs>> scoreTasks = new ArrayList<>(partitions);
         int maxDoc = leafReaderContext.reader().maxDoc();
+        int partitions = Math.toIntExact(maxDoc / THRESHOLD + 1);
         int partitionSize = maxDoc / partitions;
         int remainder = maxDoc % partitions;
         int offset = 0;
+        List<Callable<TopDocs>> scoreTasks = new ArrayList<>(partitions);
         for (int i = 0; i < partitions; i++) {
             int size = partitionSize + (i < remainder ? 1 : 0);
             int minDocId = offset;
@@ -156,7 +156,7 @@ public class ExactSearcher {
             scoreTasks.add(() -> searchTopCandidates(leafReaderContext, context, limit, filterScore, minDocId, maxDocId));
             offset += size;
         }
-        List<TopDocs> results = ExactSearcher.taskExecutor.invokeAll(scoreTasks);
+        List<TopDocs> results = context.taskExecutor.invokeAll(scoreTasks);
         return TopDocs.merge(limit, results.toArray(new TopDocs[partitions]));
     }
 
@@ -334,5 +334,6 @@ public class ExactSearcher {
         Integer maxResultWindow;
         VectorSimilarityFunction similarityFunction;
         Boolean isMemoryOptimizedSearchEnabled;
+        TaskExecutor taskExecutor;
     }
 }

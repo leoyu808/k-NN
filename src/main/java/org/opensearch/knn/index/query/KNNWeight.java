@@ -14,9 +14,11 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -85,11 +87,13 @@ public abstract class KNNWeight extends Weight {
     protected final QuantizationService quantizationService;
     private final KnnExplanation knnExplanation;
 
-    public KNNWeight(KNNQuery query, float boost) {
-        this(query, boost, null);
+    private final IndexSearcher indexSearcher;
+
+    public KNNWeight(KNNQuery query, float boost, IndexSearcher indexSearcher) {
+        this(query, boost, null, indexSearcher);
     }
 
-    public KNNWeight(KNNQuery query, float boost, Weight filterWeight) {
+    public KNNWeight(KNNQuery query, float boost, Weight filterWeight, IndexSearcher indexSearcher) {
         super(query);
         this.knnQuery = query;
         this.boost = boost;
@@ -97,6 +101,7 @@ public abstract class KNNWeight extends Weight {
         this.exactSearcher = DEFAULT_EXACT_SEARCHER;
         this.quantizationService = QuantizationService.getInstance();
         this.knnExplanation = new KnnExplanation();
+        this.indexSearcher = indexSearcher;
     }
 
     public static void initialize(ModelDao modelDao) {
@@ -402,7 +407,8 @@ public abstract class KNNWeight extends Weight {
             .numberOfMatchedDocs(numberOfAcceptedDocs)
             .floatQueryVector(knnQuery.getQueryVector())
             .byteQueryVector(knnQuery.getByteQueryVector())
-            .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch());
+            .isMemoryOptimizedSearchEnabled(knnQuery.isMemoryOptimizedSearch())
+            .taskExecutor(indexSearcher.getTaskExecutor());
 
         if (knnQuery.getContext() != null) {
             exactSearcherContextBuilder.maxResultWindow(knnQuery.getContext().getMaxResultWindow());
