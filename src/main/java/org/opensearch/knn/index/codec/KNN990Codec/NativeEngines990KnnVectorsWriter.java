@@ -12,6 +12,7 @@
 package org.opensearch.knn.index.codec.KNN990Codec;
 
 import lombok.extern.log4j.Log4j2;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -21,6 +22,7 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.StopWatch;
@@ -35,6 +37,7 @@ import org.opensearch.knn.quantization.models.quantizationParams.QuantizationPar
 import org.opensearch.knn.quantization.models.quantizationState.QuantizationState;
 
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -183,6 +186,10 @@ public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
      */
     @Override
     public void finish() throws IOException {
+        try (IndexOutput output = segmentWriteState.directory.createOutput(IndexFileNames.segmentFileName(segmentWriteState.segmentInfo.name, "", "mem"), segmentWriteState.context)) {
+            CodecUtil.writeIndexHeader(output, "NativeEngines990KnnVectors", 0, segmentWriteState.segmentInfo.getId(), segmentWriteState.segmentSuffix);
+            CodecUtil.writeFooter(output);
+        }
         if (finished) {
             throw new IllegalStateException("NativeEnginesKNNVectorsWriter is already finished");
         }

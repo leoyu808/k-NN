@@ -14,6 +14,7 @@ package org.opensearch.knn.index.codec.KNN990Codec;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
@@ -26,6 +27,8 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
@@ -58,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.knn.common.KNNConstants.VECTOR_DATA_TYPE_FIELD;
 import static org.opensearch.knn.index.codec.KNN990Codec.NativeEngineSegmentAttributeParser.INDEX_NAME;
 import static org.opensearch.knn.index.mapper.KNNVectorFieldMapper.KNN_FIELD;
 import static org.opensearch.knn.index.util.IndexUtil.getParametersAtLoading;
@@ -227,6 +229,7 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
         // Clean up allocated vector indices resources from cache.
         final NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
         cacheKeys.forEach(nativeMemoryCacheManager::invalidate);
+        nativeMemoryCacheManager.deleteSegmentFromRegistry(segmentReadState.segmentInfo);
 
         // Close a reader.
         final List<Closeable> closeables = new ArrayList<>();
@@ -389,15 +392,14 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
     private void warmUpSegmentIfRequired() throws IOException {
         SegmentInfo segmentInfo = segmentReadState.segmentInfo;
         String indexName = segmentInfo.getAttribute(INDEX_NAME);
-        Set<String> fileNames = new HashSet<>(Arrays.asList(segmentInfo.dir.listAll()));
+        final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
         for (final FieldInfo fieldInfo : segmentReadState.fieldInfos) {
             final String vectorIndexFileName = KNNCodecUtil.getNativeEngineFileFromFieldInfo(fieldInfo, segmentInfo);
             if (vectorIndexFileName == null) {
                 continue;
             }
-            if (fileNames.contains(IndexFileNames.segmentFileName(vectorIndexFileName, "", "mem"))) {
+            if (cacheManager.registryContainsFile(segmentInfo, vectorIndexFileName)) {
                 final String cacheKey = NativeMemoryCacheKeyHelper.constructCacheKey(vectorIndexFileName, segmentInfo);
-                final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
                 try {
                     final String spaceTypeName = fieldInfo.attributes().getOrDefault(KNNConstants.SPACE_TYPE, SpaceType.L2.getValue());
                     final SpaceType spaceType = SpaceType.getSpace(spaceTypeName);
@@ -407,6 +409,7 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
                             .getQuantizationParams(fieldInfo, segmentInfo.getVersion());
                     cacheManager.get(
                         new NativeMemoryEntryContext.IndexEntryContext(
+                            segmentInfo,
                             segmentInfo.dir,
                             cacheKey,
                             NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),

@@ -21,15 +21,18 @@ import lombok.Setter;
 import org.apache.commons.lang.Validate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.SegmentInfo;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.knn.common.exception.OutOfNativeMemoryException;
 import org.opensearch.knn.common.featureflags.KNNFeatureFlags;
 import org.opensearch.knn.index.KNNSettings;
+import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
 import org.opensearch.knn.plugin.stats.StatNames;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -37,12 +40,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Manages native memory allocations made by JNI.
@@ -64,6 +71,9 @@ public class NativeMemoryCacheManager implements Closeable {
     private long maxWeight;
     @Getter
     private Cancellable maintenanceTask;
+
+    private final Lock registryLock = new ReentrantLock();
+    public Map<String, NativeMemoryCacheRegistry> registryManager;
 
     NativeMemoryCacheManager() {
         this.executor = Executors.newSingleThreadExecutor();
@@ -123,6 +133,7 @@ public class NativeMemoryCacheManager implements Closeable {
 
         cacheCapacityReached = new AtomicBoolean(false);
         accessRecencyQueue = new ConcurrentLinkedDeque<>();
+        registryManager = new HashMap<>();
         cache = cacheBuilder.build();
 
         if (threadPool != null) {
@@ -566,5 +577,59 @@ public class NativeMemoryCacheManager implements Closeable {
         TimeValue interval = KNNSettings.state().getSettingValue(KNNSettings.KNN_CACHE_ITEM_EXPIRY_TIME_MINUTES);
 
         maintenanceTask = threadPool.scheduleWithFixedDelay(cleanUp, interval, ThreadPool.Names.MANAGEMENT);
+    }
+
+    public void addFileToRegistry(SegmentInfo segmentInfo, String fileName) {
+        executor.execute(() -> {
+            registryLock.lock();
+            try {
+                String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+                registryManager.putIfAbsent(segmentKey, new NativeMemoryCacheRegistry(segmentInfo));
+                NativeMemoryCacheRegistry registry = registryManager.get(segmentKey);
+                registry.addFile(fileName);
+            } catch (IOException e) {
+
+            } finally {
+                registryLock.unlock();
+            }
+        });
+    }
+
+    public void deleteFileFromRegistry(SegmentInfo segmentInfo, String fileName) {
+        executor.execute(() -> {
+            registryLock.lock();
+            try {
+                String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+                registryManager.putIfAbsent(segmentKey, new NativeMemoryCacheRegistry(segmentInfo));
+                NativeMemoryCacheRegistry registry = registryManager.get(segmentKey);
+                registry.deleteFile(fileName);
+            } catch (IOException e) {
+
+            } finally {
+                registryLock.unlock();
+            }
+        });
+    }
+
+    public boolean registryContainsFile(SegmentInfo segmentInfo, String fileName) throws IOException {
+        registryLock.lock();
+        try {
+            String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+            registryManager.putIfAbsent(segmentKey, new NativeMemoryCacheRegistry(segmentInfo));
+            NativeMemoryCacheRegistry registry = registryManager.get(segmentKey);
+            return registry.containsFile(fileName);
+        } finally {
+            registryLock.unlock();
+        }
+    }
+
+    public void deleteSegmentFromRegistry(SegmentInfo segmentInfo) throws IOException {
+        registryLock.lock();
+        try {
+            String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+            registryManager.remove(segmentKey);
+        } finally {
+            registryLock.unlock();
+        }
     }
 }

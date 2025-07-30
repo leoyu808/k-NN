@@ -13,10 +13,13 @@ package org.opensearch.knn.index.memory;
 
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
@@ -24,6 +27,7 @@ import org.opensearch.knn.index.engine.qframe.QuantizationConfig;
 import org.opensearch.knn.index.VectorDataType;
 import org.opensearch.knn.index.store.IndexInputWithBuffer;
 
+import javax.swing.text.Segment;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -104,6 +108,9 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
         private IndexInput readStream;
 
         @Getter
+        private SegmentInfo segmentInfo;
+
+        @Getter
         IndexInputWithBuffer indexInputWithBuffer;
 
         /**
@@ -116,13 +123,14 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
          * @param openSearchIndexName Opensearch index associated with index
          */
         public IndexEntryContext(
+            SegmentInfo segmentInfo,
             Directory directory,
             String vectorIndexCacheKey,
             NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy,
             Map<String, Object> parameters,
             String openSearchIndexName
         ) {
-            this(directory, vectorIndexCacheKey, indexLoadStrategy, parameters, openSearchIndexName, null);
+            this(segmentInfo, directory, vectorIndexCacheKey, indexLoadStrategy, parameters, openSearchIndexName, null);
         }
 
         /**
@@ -136,6 +144,7 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
          * @param modelId model to be loaded. If none available, pass null
          */
         public IndexEntryContext(
+            SegmentInfo segmentInfo,
             Directory directory,
             String vectorIndexCacheKey,
             NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy,
@@ -144,6 +153,7 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
             String modelId
         ) {
             super(vectorIndexCacheKey);
+            this.segmentInfo = segmentInfo;
             this.directory = directory;
             this.indexLoadStrategy = indexLoadStrategy;
             this.openSearchIndexName = openSearchIndexName;
@@ -196,6 +206,8 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
 
         @Override
         public NativeMemoryAllocation.IndexAllocation load() throws IOException {
+            NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
+            nativeMemoryCacheManager.addFileToRegistry(segmentInfo, NativeMemoryCacheKeyHelper.extractVectorIndexFileName(key));
             if (!isIndexGraphFileOpened()) {
                 throw new IllegalStateException("Index graph file is not open");
             }

@@ -88,10 +88,6 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsWriter fieldsWriter(final SegmentWriteState state) throws IOException {
         state.segmentInfo.putAttribute(INDEX_NAME, mapperService.get().index().getName());
-        IndexOutput output = state.directory.createOutput(IndexFileNames.segmentFileName(state.segmentInfo.name, "", "mem"), state.context);
-        CodecUtil.writeIndexHeader(output, "NativeEngines990KnnVectors", 0, state.segmentInfo.getId(), state.segmentSuffix);
-        CodecUtil.writeFooter(output);
-        output.close();
         return new NativeEngines990KnnVectorsWriter(
             state,
             flatVectorsFormat.fieldsWriter(state),

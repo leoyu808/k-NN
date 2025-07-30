@@ -12,6 +12,7 @@
 package org.opensearch.knn.index.memory;
 
 import lombok.extern.log4j.Log4j2;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
@@ -95,7 +96,7 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
                     indexEntryContext.getParameters(),
                     knnEngine
                 );
-                return createIndexAllocation(indexEntryContext, knnEngine, indexAddress, indexSizeKb, vectorFileName, directory);
+                return createIndexAllocation(indexEntryContext, knnEngine, indexAddress, indexSizeKb, vectorFileName);
             }
         }
 
@@ -104,8 +105,7 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
             final KNNEngine knnEngine,
             final long indexAddress,
             final int indexSizeKb,
-            final String vectorFileName,
-            final Directory directory
+            final String vectorFileName
         ) {
             SharedIndexState sharedIndexState = null;
             String modelId = indexEntryContext.getModelId();
@@ -116,6 +116,7 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
             }
 
             return new NativeMemoryAllocation.IndexAllocation(
+                indexEntryContext.getSegmentInfo(),
                 executor,
                 indexAddress,
                 indexSizeKb,

@@ -6,7 +6,10 @@
 package org.opensearch.knn.index.codec.nativeindex;
 
 import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentWriteState;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.knn.index.codec.nativeindex.model.BuildIndexParams;
 import org.opensearch.knn.index.codec.nativeindex.remote.RemoteIndexBuildStrategy;
@@ -26,6 +29,7 @@ import static org.opensearch.knn.index.codec.util.KNNCodecUtil.initializeVectorV
 /**
  * Creates the {@link NativeIndexBuildStrategy}
  */
+@Log4j2
 public final class NativeIndexBuildStrategyFactory {
 
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
