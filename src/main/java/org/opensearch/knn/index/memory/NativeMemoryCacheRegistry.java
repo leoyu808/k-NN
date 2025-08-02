@@ -5,6 +5,7 @@
 
 package org.opensearch.knn.index.memory;
 
+import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
@@ -12,6 +13,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.knn.common.KNNConstants;
 import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
 
 import java.io.IOException;
@@ -21,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@Log4j2
 public class NativeMemoryCacheRegistry {
     private final Directory directory;
     private final String registryFileName;
@@ -28,7 +31,8 @@ public class NativeMemoryCacheRegistry {
 
     public NativeMemoryCacheRegistry(SegmentInfo segmentInfo) throws IOException {
         directory = segmentInfo.dir;
-        registryFileName = IndexFileNames.segmentFileName(segmentInfo.name, "", "mem");
+        String memExtension = segmentInfo.getUseCompoundFile() ? KNNConstants.CACHE_MARKER + KNNConstants.COMPOUND_EXTENSION : KNNConstants.CACHE_MARKER;
+        registryFileName = IndexFileNames.segmentFileName(segmentInfo.name, "", memExtension);
         inMemory = new HashSet<>();
 
         try (IndexInput in = directory.openInput(registryFileName, IOContext.READONCE)) {
@@ -38,6 +42,9 @@ public class NativeMemoryCacheRegistry {
                 String s = in.readString();
                 inMemory.add(s);
             }
+        }
+        catch (Exception e) {
+            log.info("Error reading file: {}", e.toString());
         }
     }
 

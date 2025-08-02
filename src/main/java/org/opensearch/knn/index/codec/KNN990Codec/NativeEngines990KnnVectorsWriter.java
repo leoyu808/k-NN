@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.StopWatch;
+import org.opensearch.knn.common.KNNConstants;
 import org.opensearch.knn.index.VectorDataType;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexBuildStrategyFactory;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexWriter;
@@ -186,7 +187,7 @@ public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
      */
     @Override
     public void finish() throws IOException {
-        try (IndexOutput output = segmentWriteState.directory.createOutput(IndexFileNames.segmentFileName(segmentWriteState.segmentInfo.name, "", "mem"), segmentWriteState.context)) {
+        try (IndexOutput output = segmentWriteState.directory.createOutput(IndexFileNames.segmentFileName(segmentWriteState.segmentInfo.name, "", KNNConstants.CACHE_MARKER), segmentWriteState.context)) {
             CodecUtil.writeIndexHeader(output, "NativeEngines990KnnVectors", 0, segmentWriteState.segmentInfo.getId(), segmentWriteState.segmentSuffix);
             CodecUtil.writeFooter(output);
         }

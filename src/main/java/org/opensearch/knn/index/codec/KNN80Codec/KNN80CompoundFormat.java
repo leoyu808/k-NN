@@ -49,6 +49,7 @@ public class KNN80CompoundFormat extends CompoundFormat {
         for (KNNEngine knnEngine : KNNEngine.getEnginesThatCreateCustomSegmentFiles()) {
             writeEngineFiles(dir, si, context, knnEngine.getExtension());
         }
+        extractAndPreserveMemFile(dir, si, context);
         delegate.write(dir, si, context);
     }
 
@@ -69,5 +70,22 @@ public class KNN80CompoundFormat extends CompoundFormat {
             segmentFiles.removeAll(engineFiles);
             si.setFiles(segmentFiles);
         }
+    }
+
+    private void extractAndPreserveMemFile(Directory dir, SegmentInfo si, IOContext context) throws IOException {
+        Set<String> memFiles = si.files().stream().filter(f -> f.endsWith(".mem")).collect(Collectors.toSet());
+        if (memFiles.isEmpty()) {
+            return;
+        }
+
+        Set<String> segmentFiles = new HashSet<>(si.files());
+        for (String memFile : memFiles) {
+            String compoundMemName = memFile + KNNConstants.COMPOUND_EXTENSION;
+            // Copy the .mem to .memc to prevent it from being bundled later
+            dir.copyFrom(dir, memFile, compoundMemName, context);
+            // Remove original .mem from the set that gets compounded, if necessary.
+            segmentFiles.remove(memFile);
+        }
+        si.setFiles(segmentFiles);
     }
 }
