@@ -24,9 +24,19 @@ public final class NativeMemoryCacheKeyHelper {
      * {@link org.opensearch.knn.index.memory.NativeMemoryCacheManager}
      */
     public static String constructCacheKey(final String vectorIndexFileName, final SegmentInfo segmentInfo) {
-        final String segmentId = Base64.getEncoder().encodeToString(segmentInfo.getId());
-        final String cacheKey = vectorIndexFileName + KEY_DELIMITER + segmentId;
-        return cacheKey;
+        final String segmentId = constructSegmentKey(segmentInfo);
+        return vectorIndexFileName + "@" + segmentId;
+    }
+
+    /**
+     * Construct a unique key for look-up operation in {@link org.opensearch.knn.index.memory.NativeMemoryCacheManager}
+     *
+     * @param segmentInfo Segment info object representing a logical segment unit containing a vector index.
+     * @return Unique key that can be used for look-up and invalidating in
+     * {@link org.opensearch.knn.index.memory.NativeMemoryCacheManager}
+     */
+    public static String constructSegmentKey(final SegmentInfo segmentInfo) {
+        return Base64.getEncoder().encodeToString(segmentInfo.getId());
     }
 
     /**

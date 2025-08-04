@@ -49,6 +49,7 @@ public class KNN80CompoundFormat extends CompoundFormat {
         for (KNNEngine knnEngine : KNNEngine.getEnginesThatCreateCustomSegmentFiles()) {
             writeEngineFiles(dir, si, context, knnEngine.getExtension());
         }
+        writeMemFile(dir, si, context);
         delegate.write(dir, si, context);
     }
 
@@ -69,5 +70,20 @@ public class KNN80CompoundFormat extends CompoundFormat {
             segmentFiles.removeAll(engineFiles);
             si.setFiles(segmentFiles);
         }
+    }
+
+    private void writeMemFile(Directory dir, SegmentInfo si, IOContext context) throws IOException {
+        Set<String> memFiles = si.files().stream().filter(f -> f.endsWith(KNNConstants.CACHE_MARKER)).collect(Collectors.toSet());
+        if (memFiles.isEmpty()) {
+            return;
+        }
+
+        Set<String> segmentFiles = new HashSet<>(si.files());
+        for (String memFile : memFiles) {
+            String memCompoundFile = memFile + KNNConstants.COMPOUND_EXTENSION;
+            dir.copyFrom(dir, memFile, memCompoundFile, context);
+            segmentFiles.remove(memFile);
+        }
+        si.setFiles(segmentFiles);
     }
 }

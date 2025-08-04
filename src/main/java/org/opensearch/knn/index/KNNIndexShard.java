@@ -172,6 +172,7 @@ public class KNNIndexShard {
                 // Load an off-heap index
                 nativeMemoryCacheManager.get(
                     new NativeMemoryEntryContext.IndexEntryContext(
+                        engineFileContext.getSegmentInfo(),
                         directory,
                         cacheKey,
                         NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),

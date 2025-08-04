@@ -183,4 +183,6 @@ public class KNNConstants {
     // Repository-S3
     public static final String S3 = "s3";
     public static final String BUCKET = "bucket";
+
+    public static final String CACHE_MARKER = "mem";
 }

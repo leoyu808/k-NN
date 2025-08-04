@@ -18,18 +18,23 @@ import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalNotification;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
 import org.apache.commons.lang.Validate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentWriteState;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.knn.common.exception.OutOfNativeMemoryException;
 import org.opensearch.knn.common.featureflags.KNNFeatureFlags;
 import org.opensearch.knn.index.KNNSettings;
+import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
 import org.opensearch.knn.plugin.stats.StatNames;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -42,11 +47,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Manages native memory allocations made by JNI.
  */
+@Log4j2
 public class NativeMemoryCacheManager implements Closeable {
 
     public static String GRAPH_COUNT = "graph_count";
@@ -62,6 +69,9 @@ public class NativeMemoryCacheManager implements Closeable {
     private final ExecutorService executor;
     private AtomicBoolean cacheCapacityReached;
     private long maxWeight;
+    private final Lock registryLock = new ReentrantLock();
+    public Map<String, NativeMemoryCacheRegistry> registryManager;
+
     @Getter
     private Cancellable maintenanceTask;
 
@@ -123,6 +133,7 @@ public class NativeMemoryCacheManager implements Closeable {
 
         cacheCapacityReached = new AtomicBoolean(false);
         accessRecencyQueue = new ConcurrentLinkedDeque<>();
+        registryManager = new HashMap<>();
         cache = cacheBuilder.build();
 
         if (threadPool != null) {
@@ -566,5 +577,49 @@ public class NativeMemoryCacheManager implements Closeable {
         TimeValue interval = KNNSettings.state().getSettingValue(KNNSettings.KNN_CACHE_ITEM_EXPIRY_TIME_MINUTES);
 
         maintenanceTask = threadPool.scheduleWithFixedDelay(cleanUp, interval, ThreadPool.Names.MANAGEMENT);
+    }
+
+    public void deleteSegmentRegistry(SegmentInfo segmentInfo) {
+        String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+        registryManager.remove(segmentKey);
+    }
+
+    public void addFileToSegmentRegistry(SegmentInfo segmentInfo, String fileName) {
+        executor.execute(() -> {
+            registryLock.lock();
+            try {
+                String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+                registryManager.putIfAbsent(segmentKey, new NativeMemoryCacheRegistry(segmentInfo));
+                NativeMemoryCacheRegistry registry = registryManager.get(segmentKey);
+                registry.addFile(fileName);
+            } catch (IOException e) {
+                log.warn("Failed to add file to registry: {}", fileName);
+            } finally {
+                registryLock.unlock();
+            }
+        });
+    }
+
+    public void deleteFileFromSegmentRegistry(SegmentInfo segmentInfo, String fileName) {
+        executor.execute(() -> {
+            registryLock.lock();
+            try {
+                String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+                registryManager.putIfAbsent(segmentKey, new NativeMemoryCacheRegistry(segmentInfo));
+                NativeMemoryCacheRegistry registry = registryManager.get(segmentKey);
+                registry.deleteFile(fileName);
+            } catch (IOException e) {
+                log.warn("Failed to delete file from registry: {}", fileName);
+            } finally {
+                registryLock.unlock();
+            }
+        });
+    }
+
+    public boolean segmentRegistryContainsFile(SegmentInfo segmentInfo, String fileName) throws IOException {
+        String segmentKey = NativeMemoryCacheKeyHelper.constructSegmentKey(segmentInfo);
+        registryManager.putIfAbsent(segmentKey, new NativeMemoryCacheRegistry(segmentInfo));
+        NativeMemoryCacheRegistry registry = registryManager.get(segmentKey);
+        return registry.containsFile(fileName);
     }
 }

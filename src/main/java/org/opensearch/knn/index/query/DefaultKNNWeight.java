@@ -194,6 +194,7 @@ public class DefaultKNNWeight extends KNNWeight {
     ) throws ExecutionException, IOException {
         return nativeMemoryCacheManager.get(
             new NativeMemoryEntryContext.IndexEntryContext(
+                reader.getSegmentInfo().info,
                 reader.directory(),
                 cacheKey,
                 NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),

@@ -73,7 +73,7 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
     private final List<String> cacheKeys;
     private volatile Map<String, VectorSearcherHolder> vectorSearchers;
 
-    public NativeEngines990KnnVectorsReader(final SegmentReadState state, final FlatVectorsReader flatVectorsReader) {
+    public NativeEngines990KnnVectorsReader(final SegmentReadState state, final FlatVectorsReader flatVectorsReader) throws IOException {
         this.flatVectorsReader = flatVectorsReader;
         this.segmentReadState = state;
         this.cacheKeys = getVectorCacheKeysFromSegmentReaderState(state);
@@ -222,6 +222,7 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
         // Clean up allocated vector indices resources from cache.
         final NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
         cacheKeys.forEach(nativeMemoryCacheManager::invalidate);
+        nativeMemoryCacheManager.deleteSegmentRegistry(segmentReadState.segmentInfo);
 
         // Close a reader.
         final List<Closeable> closeables = new ArrayList<>();
@@ -408,54 +409,41 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
         }
     }
 
-    private void warmUpSegmentIfRequired() {
+    private void warmUpSegmentIfRequired() throws IOException {
         SegmentInfo segmentInfo = segmentReadState.segmentInfo;
-        if (NativeEngineSegmentAttributeParser.parseWarmup(segmentInfo)) {
-            Set<String> memoryOptimizedFieldNames = NativeEngineSegmentAttributeParser.parseMemoryOptimizedFields(segmentInfo);
-            String indexName = NativeEngineSegmentAttributeParser.parseIndexName(segmentInfo);
-            for (final FieldInfo fieldInfo : segmentReadState.fieldInfos) {
-                if (memoryOptimizedFieldNames.contains(fieldInfo.getName())) {
-                    String dataTypeStr = fieldInfo.getAttribute(KNNConstants.VECTOR_DATA_TYPE_FIELD);
-                    if (dataTypeStr == null) {
-                        continue;
-                    }
-                    try {
-                        boolean isFloat = VectorDataType.get(dataTypeStr) == VectorDataType.FLOAT;
-                        trySearchWithMemoryOptimizedSearch(fieldInfo.getName(), null, null, null, isFloat);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                } else {
-                    final String vectorIndexFileName = KNNCodecUtil.getNativeEngineFileFromFieldInfo(fieldInfo, segmentInfo);
-                    if (vectorIndexFileName == null) {
-                        continue;
-                    }
-                    final String cacheKey = NativeMemoryCacheKeyHelper.constructCacheKey(vectorIndexFileName, segmentInfo);
-                    final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
-                    try {
-                        final String spaceTypeName = fieldInfo.attributes().getOrDefault(KNNConstants.SPACE_TYPE, SpaceType.L2.getValue());
-                        final SpaceType spaceType = SpaceType.getSpace(spaceTypeName);
-                        final KNNEngine knnEngine = KNNEngine.getEngineNameFromPath(vectorIndexFileName);
-                        final QuantizationParams quantizationParams = QuantizationService.getInstance()
-                            .getQuantizationParams(fieldInfo, segmentInfo.getVersion());
-                        final VectorDataType vectorDataType = FieldInfoExtractor.determineVectorDataType(
-                            fieldInfo,
-                            quantizationParams,
-                            segmentInfo.getVersion()
-                        );
-                        cacheManager.get(
-                            new NativeMemoryEntryContext.IndexEntryContext(
-                                segmentInfo.dir,
-                                cacheKey,
-                                NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
-                                getParametersAtLoading(spaceType, knnEngine, indexName, vectorDataType, quantizationParams),
-                                indexName
-                            ),
-                            true
-                        );
-                    } catch (Exception e) {
-                        log.warn("Failed to put file in memory: {}, exception: {}", vectorIndexFileName, e.toString());
-                    }
+        String indexName = NativeEngineSegmentAttributeParser.parseIndexName(segmentInfo);
+        final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
+        for (final FieldInfo fieldInfo : segmentReadState.fieldInfos) {
+            final String vectorIndexFileName = KNNCodecUtil.getNativeEngineFileFromFieldInfo(fieldInfo, segmentInfo);
+            if (vectorIndexFileName == null) {
+                continue;
+            }
+            if (cacheManager.segmentRegistryContainsFile(segmentInfo, vectorIndexFileName)) {
+                final String cacheKey = NativeMemoryCacheKeyHelper.constructCacheKey(vectorIndexFileName, segmentInfo);
+                try {
+                    final String spaceTypeName = fieldInfo.attributes().getOrDefault(KNNConstants.SPACE_TYPE, SpaceType.L2.getValue());
+                    final SpaceType spaceType = SpaceType.getSpace(spaceTypeName);
+                    final KNNEngine knnEngine = KNNEngine.getEngineNameFromPath(vectorIndexFileName);
+                    final QuantizationParams quantizationParams = QuantizationService.getInstance()
+                        .getQuantizationParams(fieldInfo, segmentInfo.getVersion());
+                    final VectorDataType vectorDataType = FieldInfoExtractor.determineVectorDataType(
+                        fieldInfo,
+                        quantizationParams,
+                        segmentInfo.getVersion()
+                    );
+                    cacheManager.get(
+                        new NativeMemoryEntryContext.IndexEntryContext(
+                            segmentInfo,
+                            segmentInfo.dir,
+                            cacheKey,
+                            NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
+                            getParametersAtLoading(spaceType, knnEngine, indexName, vectorDataType, quantizationParams),
+                            indexName
+                        ),
+                        true
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to put file in memory: {}, exception: {}", vectorIndexFileName, e.toString());
                 }
             }
         }
