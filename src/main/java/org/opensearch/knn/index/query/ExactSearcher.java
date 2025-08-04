@@ -116,8 +116,8 @@ public class ExactSearcher {
         // max distance is already converted min score then saved in `radius`. Thus, we don't need a score translation which does not make
         // sense as it is treating min score as a max distance otherwise.
         final float minScore = context.isMemoryOptimizedSearchEnabled
-            ? context.getRadius()
-            : spaceType.scoreTranslation(context.getRadius());
+                ? context.getRadius()
+                : spaceType.scoreTranslation(context.getRadius());
         return filterDocsByMinScore(leafReaderContext, context, minScore);
     }
 
@@ -142,10 +142,10 @@ public class ExactSearcher {
             int limit,
             @NonNull Predicate<Float> filterScore
     ) throws IOException {
-        long THRESHOLD = 250_000;
-        int partitions = Math.toIntExact(context.getNumberOfMatchedDocs() / THRESHOLD + 1);
-        List<Callable<TopDocs>> scoreTasks = new ArrayList<>(partitions);
+        long THRESHOLD = 100_000;
         int maxDoc = leafReaderContext.reader().maxDoc();
+        int partitions = Math.toIntExact(maxDoc / THRESHOLD + 1);
+        List<Callable<TopDocs>> scoreTasks = new ArrayList<>(partitions);
         int partitionSize = maxDoc / partitions;
         int remainder = maxDoc % partitions;
         int offset = 0;
