@@ -19,6 +19,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -31,9 +32,7 @@ import org.opensearch.knn.common.KNNConstants;
 import org.opensearch.knn.index.VectorDataType;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexBuildStrategyFactory;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexWriter;
-import org.opensearch.knn.index.memory.NativeMemoryCacheManager;
 import org.opensearch.knn.index.quantizationservice.QuantizationService;
-import org.opensearch.knn.index.util.IndexUtil;
 import org.opensearch.knn.index.vectorvalues.KNNVectorValues;
 import org.opensearch.knn.plugin.stats.KNNGraphValue;
 import org.opensearch.knn.quantization.models.quantizationParams.QuantizationParams;
@@ -195,9 +194,18 @@ public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
     public void finish() throws IOException {
         String registryFileName = IndexFileNames.segmentFileName(segmentWriteState.segmentInfo.name, "", KNNConstants.CACHE_MARKER);
         try (IndexOutput output = segmentWriteState.directory.createOutput(registryFileName, segmentWriteState.context)) {
-            CodecUtil.writeIndexHeader(output, NATIVE_ENGINES_990_KNN_VECTORS_FORMAT_CACHE_DATA, 0, segmentWriteState.segmentInfo.getId(), segmentWriteState.segmentSuffix);
+            CodecUtil.writeIndexHeader(
+                output,
+                NATIVE_ENGINES_990_KNN_VECTORS_FORMAT_CACHE_DATA,
+                0,
+                segmentWriteState.segmentInfo.getId(),
+                segmentWriteState.segmentSuffix
+            );
             CodecUtil.writeFooter(output);
         }
+        SegmentInfo segmentInfo = segmentWriteState.segmentInfo;
+        String indexName = mapperService.index().getName();
+        segmentInfo.putAttribute(INDEX_NAME, indexName);
         if (finished) {
             throw new IllegalStateException("NativeEnginesKNNVectorsWriter is already finished");
         }

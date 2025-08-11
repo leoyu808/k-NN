@@ -27,8 +27,6 @@ import org.opensearch.knn.index.engine.KNNEngine;
 
 import java.io.IOException;
 
-import static org.opensearch.knn.index.codec.KNN990Codec.NativeEngineSegmentAttributeParser.INDEX_NAME;
-
 /**
  * This is a Vector format that will be used for Native engines like Faiss and Nmslib for reading and writing vector
  * related data structures.

@@ -9,7 +9,6 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -21,7 +20,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-
 @Log4j2
 public class NativeMemoryCacheRegistry {
     private final Directory directory;
@@ -31,7 +29,9 @@ public class NativeMemoryCacheRegistry {
 
     public NativeMemoryCacheRegistry(SegmentInfo segmentInfo) throws IOException {
         directory = segmentInfo.dir;
-        String memExtension = segmentInfo.getUseCompoundFile() ? KNNConstants.CACHE_MARKER + KNNConstants.COMPOUND_EXTENSION : KNNConstants.CACHE_MARKER;
+        String memExtension = segmentInfo.getUseCompoundFile()
+            ? KNNConstants.CACHE_MARKER + KNNConstants.COMPOUND_EXTENSION
+            : KNNConstants.CACHE_MARKER;
         registryFileName = IndexFileNames.segmentFileName(segmentInfo.name, "", memExtension);
         inMemory = new HashSet<>();
         registryFileExists = Arrays.asList(directory.listAll()).contains(registryFileName);
