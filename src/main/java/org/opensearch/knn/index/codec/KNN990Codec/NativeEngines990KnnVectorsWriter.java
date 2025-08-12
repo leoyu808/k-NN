@@ -12,17 +12,22 @@
 package org.opensearch.knn.index.codec.KNN990Codec;
 
 import lombok.extern.log4j.Log4j2;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.StopWatch;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.knn.common.KNNConstants;
 import org.opensearch.knn.index.VectorDataType;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexBuildStrategyFactory;
 import org.opensearch.knn.index.codec.nativeindex.NativeIndexWriter;
@@ -47,6 +52,7 @@ import static org.opensearch.knn.index.vectorvalues.KNNVectorValuesFactory.getVe
 @Log4j2
 public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NativeEngines990KnnVectorsWriter.class);
+    private static final String NATIVE_ENGINES_990_KNN_VECTORS_FORMAT_CACHE_DATA = "NativeEngines990KnnVectorsFormatCacheData";
 
     private final SegmentWriteState segmentWriteState;
     private final FlatVectorsWriter flatVectorsWriter;
@@ -55,17 +61,20 @@ public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
     private boolean finished;
     private final Integer approximateThreshold;
     private final NativeIndexBuildStrategyFactory nativeIndexBuildStrategyFactory;
+    private final MapperService mapperService;
 
     public NativeEngines990KnnVectorsWriter(
         SegmentWriteState segmentWriteState,
         FlatVectorsWriter flatVectorsWriter,
         Integer approximateThreshold,
-        NativeIndexBuildStrategyFactory nativeIndexBuildStrategyFactory
+        NativeIndexBuildStrategyFactory nativeIndexBuildStrategyFactory,
+        MapperService mapperService
     ) {
         this.segmentWriteState = segmentWriteState;
         this.flatVectorsWriter = flatVectorsWriter;
         this.approximateThreshold = approximateThreshold;
         this.nativeIndexBuildStrategyFactory = nativeIndexBuildStrategyFactory;
+        this.mapperService = mapperService;
     }
 
     /**
@@ -181,6 +190,18 @@ public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
      */
     @Override
     public void finish() throws IOException {
+        String registryFileName = IndexFileNames.segmentFileName(segmentWriteState.segmentInfo.name, "", KNNConstants.CACHE_MARKER);
+        try (IndexOutput output = segmentWriteState.directory.createOutput(registryFileName, segmentWriteState.context)) {
+            CodecUtil.writeIndexHeader(
+                output,
+                NATIVE_ENGINES_990_KNN_VECTORS_FORMAT_CACHE_DATA,
+                0,
+                segmentWriteState.segmentInfo.getId(),
+                segmentWriteState.segmentSuffix
+            );
+            CodecUtil.writeFooter(output);
+        }
+        NativeEngineSegmentAttributeParser.writeIndexName(mapperService, segmentWriteState.segmentInfo);
         if (finished) {
             throw new IllegalStateException("NativeEnginesKNNVectorsWriter is already finished");
         }

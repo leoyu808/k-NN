@@ -14,6 +14,7 @@ package org.opensearch.knn.index.memory;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentInfo;
 import org.opensearch.knn.common.featureflags.KNNFeatureFlags;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.knn.index.VectorDataType;
@@ -106,6 +107,7 @@ public interface NativeMemoryAllocation {
      */
     class IndexAllocation implements NativeMemoryAllocation {
 
+        private final SegmentInfo segmentInfo;
         private final ExecutorService executor;
         private final long memoryAddress;
         private final int sizeKb;
@@ -133,6 +135,7 @@ public interface NativeMemoryAllocation {
          * @param openSearchIndexName Name of OpenSearch index this index is associated with
          */
         IndexAllocation(
+            SegmentInfo segmentInfo,
             ExecutorService executorService,
             long memoryAddress,
             int sizeKb,
@@ -140,7 +143,7 @@ public interface NativeMemoryAllocation {
             String vectorFileName,
             String openSearchIndexName
         ) {
-            this(executorService, memoryAddress, sizeKb, knnEngine, vectorFileName, openSearchIndexName, null, false);
+            this(segmentInfo, executorService, memoryAddress, sizeKb, knnEngine, vectorFileName, openSearchIndexName, null, false);
         }
 
         /**
@@ -155,6 +158,7 @@ public interface NativeMemoryAllocation {
          * @param sharedIndexState Shared index state. If not shared state present, pass null.
          */
         IndexAllocation(
+            SegmentInfo segmentInfo,
             ExecutorService executorService,
             long memoryAddress,
             int sizeKb,
@@ -164,6 +168,7 @@ public interface NativeMemoryAllocation {
             SharedIndexState sharedIndexState,
             boolean isBinaryIndex
         ) {
+            this.segmentInfo = segmentInfo;
             this.executor = executorService;
             this.closed = false;
             this.knnEngine = knnEngine;
@@ -198,6 +203,8 @@ public interface NativeMemoryAllocation {
 
         @Override
         public void close() {
+            NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
+            nativeMemoryCacheManager.deleteFileFromSegmentRegistry(segmentInfo, vectorFileName);
             if (!closed && refCounted.refCount() > 0) {
                 refCounted.close();
             }

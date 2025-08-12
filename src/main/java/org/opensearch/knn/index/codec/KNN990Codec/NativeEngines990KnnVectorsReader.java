@@ -19,6 +19,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreDoc;
@@ -29,13 +30,19 @@ import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
 import org.opensearch.common.UUIDs;
 import org.opensearch.knn.common.FieldInfoExtractor;
+import org.opensearch.knn.common.KNNConstants;
+import org.opensearch.knn.index.SpaceType;
+import org.opensearch.knn.index.VectorDataType;
 import org.opensearch.knn.index.codec.util.KNNCodecUtil;
 import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
 import org.opensearch.knn.index.engine.KNNEngine;
 import org.opensearch.knn.index.memory.NativeMemoryCacheManager;
+import org.opensearch.knn.index.memory.NativeMemoryEntryContext;
+import org.opensearch.knn.index.memory.NativeMemoryLoadStrategy;
 import org.opensearch.knn.index.quantizationservice.QuantizationService;
 import org.opensearch.knn.memoryoptsearch.VectorSearcher;
 import org.opensearch.knn.memoryoptsearch.VectorSearcherFactory;
+import org.opensearch.knn.quantization.models.quantizationParams.QuantizationParams;
 import org.opensearch.knn.quantization.models.quantizationState.QuantizationState;
 import org.opensearch.knn.quantization.models.quantizationState.QuantizationStateCacheManager;
 import org.opensearch.knn.quantization.models.quantizationState.QuantizationStateReadConfig;
@@ -48,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.knn.index.mapper.KNNVectorFieldMapper.KNN_FIELD;
+import static org.opensearch.knn.index.util.IndexUtil.getParametersAtLoading;
 
 /**
  * Vectors reader class for reading the flat vectors for native engines. The class provides methods for iterating
@@ -64,13 +72,14 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
     private final List<String> cacheKeys;
     private volatile Map<String, VectorSearcherHolder> vectorSearchers;
 
-    public NativeEngines990KnnVectorsReader(final SegmentReadState state, final FlatVectorsReader flatVectorsReader) {
+    public NativeEngines990KnnVectorsReader(final SegmentReadState state, final FlatVectorsReader flatVectorsReader) throws IOException {
         this.flatVectorsReader = flatVectorsReader;
         this.segmentReadState = state;
         this.cacheKeys = getVectorCacheKeysFromSegmentReaderState(state);
 
         loadCacheKeyMap();
         fillVectorSearcherTable();
+        warmUpSegmentIfRequired();
     }
 
     /**
@@ -212,6 +221,7 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
         // Clean up allocated vector indices resources from cache.
         final NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
         cacheKeys.forEach(nativeMemoryCacheManager::invalidate);
+        nativeMemoryCacheManager.deleteSegmentRegistry(segmentReadState.segmentInfo);
 
         // Close a reader.
         final List<Closeable> closeables = new ArrayList<>();
@@ -368,6 +378,46 @@ public class NativeEngines990KnnVectorsReader extends KnnVectorsReader {
 
         // Not supported
         return null;
+    }
+
+    private void warmUpSegmentIfRequired() throws IOException {
+        SegmentInfo segmentInfo = segmentReadState.segmentInfo;
+        String indexName = NativeEngineSegmentAttributeParser.parseIndexName(segmentInfo);
+        final NativeMemoryCacheManager cacheManager = NativeMemoryCacheManager.getInstance();
+        for (final FieldInfo fieldInfo : segmentReadState.fieldInfos) {
+            final String vectorIndexFileName = KNNCodecUtil.getNativeEngineFileFromFieldInfo(fieldInfo, segmentInfo);
+            if (vectorIndexFileName == null) {
+                continue;
+            }
+            if (cacheManager.segmentRegistryContainsFile(segmentInfo, vectorIndexFileName)) {
+                final String cacheKey = NativeMemoryCacheKeyHelper.constructCacheKey(vectorIndexFileName, segmentInfo);
+                try {
+                    final String spaceTypeName = fieldInfo.attributes().getOrDefault(KNNConstants.SPACE_TYPE, SpaceType.L2.getValue());
+                    final SpaceType spaceType = SpaceType.getSpace(spaceTypeName);
+                    final KNNEngine knnEngine = KNNEngine.getEngineNameFromPath(vectorIndexFileName);
+                    final QuantizationParams quantizationParams = QuantizationService.getInstance()
+                        .getQuantizationParams(fieldInfo, segmentInfo.getVersion());
+                    final VectorDataType vectorDataType = FieldInfoExtractor.determineVectorDataType(
+                        fieldInfo,
+                        quantizationParams,
+                        segmentInfo.getVersion()
+                    );
+                    cacheManager.get(
+                        new NativeMemoryEntryContext.IndexEntryContext(
+                            segmentInfo,
+                            segmentInfo.dir,
+                            cacheKey,
+                            NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
+                            getParametersAtLoading(spaceType, knnEngine, indexName, vectorDataType, quantizationParams),
+                            indexName
+                        ),
+                        true
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to put file in memory: {}, exception: {}", vectorIndexFileName, e.toString());
+                }
+            }
+        }
     }
 
     /**

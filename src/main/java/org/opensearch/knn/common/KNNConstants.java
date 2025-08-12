@@ -188,4 +188,5 @@ public class KNNConstants {
     public static final Integer INDEX_THREAD_QUANTITY_DEFAULT_LARGE = 4;
     public static final Integer INDEX_THREAD_QUANTITY_DEFAULT_SMALL = 1;
 
+    public static final String CACHE_MARKER = "mem";
 }

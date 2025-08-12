@@ -115,6 +115,7 @@ public interface NativeMemoryLoadStrategy<T extends NativeMemoryAllocation, U ex
             }
 
             return new NativeMemoryAllocation.IndexAllocation(
+                indexEntryContext.getSegmentInfo(),
                 executor,
                 indexAddress,
                 indexSizeKb,
