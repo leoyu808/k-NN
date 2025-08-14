@@ -38,8 +38,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NativeMemoryLoadStrategyTests extends KNNTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
+    }
 
     public void testIndexLoadStrategy_load() throws IOException {
         // Create basic nmslib HNSW index
@@ -61,6 +70,7 @@ public class NativeMemoryLoadStrategyTests extends KNNTestCase {
 
             // Setup mock resource manager
             NativeMemoryEntryContext.IndexEntryContext indexEntryContext = new NativeMemoryEntryContext.IndexEntryContext(
+                null,
                 luceneDirectory,
                 TestUtils.createFakeNativeMamoryCacheKey(indexFileName),
                 NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),
@@ -108,6 +118,7 @@ public class NativeMemoryLoadStrategyTests extends KNNTestCase {
 
             // Setup mock resource manager
             NativeMemoryEntryContext.IndexEntryContext indexEntryContext = new NativeMemoryEntryContext.IndexEntryContext(
+                null,
                 luceneDirectory,
                 TestUtils.createFakeNativeMamoryCacheKey(indexFileName),
                 NativeMemoryLoadStrategy.IndexLoadStrategy.getInstance(),

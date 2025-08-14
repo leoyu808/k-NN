@@ -203,11 +203,10 @@ public interface NativeMemoryAllocation {
 
         @Override
         public void close() {
-            NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
-            nativeMemoryCacheManager.deleteFileFromSegmentRegistry(segmentInfo, vectorFileName);
             if (!closed && refCounted.refCount() > 0) {
                 refCounted.close();
             }
+            NativeMemoryCacheRegistryManager.getInstance().deleteFileSegmentRegistry(segmentInfo, vectorFileName);
         }
 
         private void cleanup() {

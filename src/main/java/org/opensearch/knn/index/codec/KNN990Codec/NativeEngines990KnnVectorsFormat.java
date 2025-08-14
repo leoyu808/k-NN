@@ -44,16 +44,13 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
         this(new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer()));
     }
 
-    public NativeEngines990KnnVectorsFormat(int approximateThreshold) {
-        this(new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer()), approximateThreshold);
-    }
-
     public NativeEngines990KnnVectorsFormat(final FlatVectorsFormat flatVectorsFormat) {
-        this(flatVectorsFormat, KNNSettings.INDEX_KNN_ADVANCED_APPROXIMATE_THRESHOLD_DEFAULT_VALUE);
-    }
-
-    public NativeEngines990KnnVectorsFormat(final FlatVectorsFormat flatVectorsFormat, int approximateThreshold) {
-        this(flatVectorsFormat, approximateThreshold, new NativeIndexBuildStrategyFactory(), null);
+        this(
+            flatVectorsFormat,
+            KNNSettings.INDEX_KNN_ADVANCED_APPROXIMATE_THRESHOLD_DEFAULT_VALUE,
+            new NativeIndexBuildStrategyFactory(),
+            null
+        );
     }
 
     public NativeEngines990KnnVectorsFormat(
@@ -95,10 +92,6 @@ public class NativeEngines990KnnVectorsFormat extends KnnVectorsFormat {
         return new NativeEngines990KnnVectorsReader(state, flatVectorsFormat.fieldsReader(state));
     }
 
-    /**
-     * @param s
-     * @return
-     */
     @Override
     public int getMaxDimensions(String s) {
         return KNNEngine.getMaxDimensionByEngine(KNNEngine.LUCENE);

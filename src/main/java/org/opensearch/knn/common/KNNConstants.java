@@ -188,5 +188,7 @@ public class KNNConstants {
     public static final Integer INDEX_THREAD_QUANTITY_DEFAULT_LARGE = 4;
     public static final Integer INDEX_THREAD_QUANTITY_DEFAULT_SMALL = 1;
 
-    public static final String CACHE_MARKER = "mem";
+    public static final String NATIVE_ENGINE_MEMORY_STATE_SUFFIX = "knnmstate";
+    public static final String TEMP_FILE_SUFFIX = "tmp";
+    public static final String BACKUP_FILE_SUFFIX = "bak";
 }

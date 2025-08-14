@@ -15,6 +15,7 @@ import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -56,15 +57,19 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.index.Index;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.knn.KNNTestCase;
 import org.opensearch.knn.common.KNNConstants;
 import org.opensearch.knn.index.SpaceType;
 import org.opensearch.knn.index.VectorDataType;
+import org.opensearch.knn.index.codec.nativeindex.NativeIndexBuildStrategyFactory;
 import org.opensearch.knn.index.codec.util.UnitTestCodec;
 import org.opensearch.knn.index.engine.KNNEngine;
 import org.opensearch.knn.index.engine.qframe.QuantizationConfig;
 import org.opensearch.knn.index.engine.qframe.QuantizationConfigParser;
 import org.opensearch.knn.index.mapper.KNNVectorFieldMapper;
+import org.opensearch.knn.index.memory.NativeMemoryCacheRegistryManager;
 import org.opensearch.knn.quantization.enums.ScalarQuantizationType;
 
 import java.io.IOException;
@@ -77,10 +82,24 @@ import java.util.stream.Collectors;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Log4j2
 public class NativeEngines990KnnVectorsFormatTests extends KNNTestCase {
-    private static final Codec TESTING_CODEC = new UnitTestCodec(() -> new NativeEngines990KnnVectorsFormat(0));
+    private static final Codec TESTING_CODEC = new UnitTestCodec(() -> {
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Index index = Mockito.mock(Index.class);
+        Mockito.when(mapperService.index()).thenReturn(index);
+        Mockito.when(index.getName()).thenReturn("test-index");
+
+        return new NativeEngines990KnnVectorsFormat(
+            new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer()),
+            0,
+            new NativeIndexBuildStrategyFactory(),
+            mapperService
+        );
+    });
     private static final String FLAT_VECTOR_FILE_EXT = ".vec";
     private static final String FAISS_ENGINE_FILE_EXT = ".faiss";
     private static final String FLOAT_VECTOR_FIELD = "float_field";
@@ -160,8 +179,20 @@ public class NativeEngines990KnnVectorsFormatTests extends KNNTestCase {
         Mockito.when(mockedFlatVectorsFormat.fieldsReader(mockedSegmentReadState)).thenReturn(Mockito.mock(FlatVectorsReader.class));
         Mockito.when(mockedFlatVectorsFormat.fieldsWriter(mockedSegmentWriteState)).thenReturn(Mockito.mock(FlatVectorsWriter.class));
 
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Index index = Mockito.mock(Index.class);
+        Mockito.when(mapperService.index()).thenReturn(index);
+        Mockito.when(index.getName()).thenReturn("test-index");
+
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
+
         final NativeEngines990KnnVectorsFormat nativeEngines990KnnVectorsFormat = new NativeEngines990KnnVectorsFormat(
-            mockedFlatVectorsFormat
+            mockedFlatVectorsFormat,
+            0,
+            new NativeIndexBuildStrategyFactory(),
+            mapperService
         );
         try (MockedStatic<CodecUtil> mockedStaticCodecUtil = Mockito.mockStatic(CodecUtil.class)) {
             mockedStaticCodecUtil.when(
@@ -326,6 +357,10 @@ public class NativeEngines990KnnVectorsFormatTests extends KNNTestCase {
         // with exception. Hence, marking this as false.
         ((BaseDirectoryWrapper) dir).setCheckIndexOnClose(false);
         indexWriter = createIndexWriter(dir);
+
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
     }
 
     private RandomIndexWriter createIndexWriter(final Directory dir) throws IOException {

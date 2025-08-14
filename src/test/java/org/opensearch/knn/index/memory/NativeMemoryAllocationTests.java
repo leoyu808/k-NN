@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.knn.common.featureflags.KNNFeatureFlags.KNN_FORCE_EVICT_CACHE_ENABLED_SETTING;
@@ -63,6 +64,9 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterSettings.get(KNN_FORCE_EVICT_CACHE_ENABLED_SETTING)).thenReturn(false);
         KNNSettings.state().setClusterService(clusterService);
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
     }
 
     @SneakyThrows
@@ -93,6 +97,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
 
             ExecutorService executorService = Executors.newSingleThreadExecutor();
             NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+                null,
                 executorService,
                 memoryAddress,
                 (int) directory.fileLength(indexFileName) / 1024,
@@ -154,6 +159,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
 
             ExecutorService executorService = Executors.newSingleThreadExecutor();
             NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+                null,
                 executorService,
                 memoryAddress,
                 (int) directory.fileLength(indexFileName) / 1024,
@@ -186,6 +192,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         long memoryAddress = 12;
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
             null,
+            null,
             memoryAddress,
             0,
             null,
@@ -200,6 +207,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         // To test the readLock, we grab the readLock in the main thread and then start a thread that grabs the write
         // lock and updates testLockValue1. We ensure that the value is not updated until after we release the readLock
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             null,
             0,
             0,
@@ -236,6 +244,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
 
         // Executor based non-blocking close
         NativeMemoryAllocation.IndexAllocation nonBlockingIndexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             mock(ExecutorService.class),
             0,
             0,
@@ -264,6 +273,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         // Having it false will make `IndexAllocation` to run close logic in a different thread.
         when(clusterSettings.get(KNN_FORCE_EVICT_CACHE_ENABLED_SETTING)).thenReturn(true);
         NativeMemoryAllocation.IndexAllocation blockingIndexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             mock(ExecutorService.class),
             0,
             0,
@@ -300,6 +310,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         // and release the writeLock.
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
             null,
+            null,
             0,
             0,
             null,
@@ -332,6 +343,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         int size = 12;
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
             null,
+            null,
             0,
             size,
             null,
@@ -345,6 +357,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
     public void testIndexAllocation_getKnnEngine() {
         KNNEngine knnEngine = KNNEngine.DEFAULT;
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             null,
             0,
             0,
@@ -360,6 +373,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
         String indexPath = "test-path";
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
             null,
+            null,
             0,
             0,
             null,
@@ -373,6 +387,7 @@ public class NativeMemoryAllocationTests extends KNNTestCase {
     public void testIndexAllocation_getOsIndexName() {
         String osIndexName = "test-index";
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             null,
             0,
             0,

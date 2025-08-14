@@ -73,7 +73,10 @@ public class KNN80CompoundFormat extends CompoundFormat {
     }
 
     private void writeMemFile(Directory dir, SegmentInfo si, IOContext context) throws IOException {
-        Set<String> memFiles = si.files().stream().filter(f -> f.endsWith(KNNConstants.CACHE_MARKER)).collect(Collectors.toSet());
+        Set<String> memFiles = si.files()
+            .stream()
+            .filter(f -> f.endsWith(KNNConstants.NATIVE_ENGINE_MEMORY_STATE_SUFFIX))
+            .collect(Collectors.toSet());
         if (memFiles.isEmpty()) {
             return;
         }

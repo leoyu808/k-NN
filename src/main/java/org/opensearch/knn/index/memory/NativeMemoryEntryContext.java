@@ -200,11 +200,11 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
 
         @Override
         public NativeMemoryAllocation.IndexAllocation load() throws IOException {
-            NativeMemoryCacheManager nativeMemoryCacheManager = NativeMemoryCacheManager.getInstance();
-            nativeMemoryCacheManager.addFileToSegmentRegistry(segmentInfo, NativeMemoryCacheKeyHelper.extractVectorIndexFileName(key));
             if (!isIndexGraphFileOpened()) {
                 throw new IllegalStateException("Index graph file is not open");
             }
+            NativeMemoryCacheRegistryManager.getInstance()
+                .addFileSegmentRegistry(segmentInfo, NativeMemoryCacheKeyHelper.extractVectorIndexFileName(key));
             return indexLoadStrategy.load(this);
         }
 

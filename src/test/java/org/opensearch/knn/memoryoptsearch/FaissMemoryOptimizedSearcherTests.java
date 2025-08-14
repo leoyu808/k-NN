@@ -23,6 +23,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.FixedBitSet;
+import org.junit.Before;
 import org.opensearch.knn.KNNTestCase;
 import org.opensearch.knn.common.KNNConstants;
 import org.opensearch.knn.generate.IndexingType;
@@ -36,6 +37,7 @@ import org.opensearch.knn.index.codec.nativeindex.MemoryOptimizedSearchIndexingS
 import org.opensearch.knn.index.codec.nativeindex.model.BuildIndexParams;
 import org.opensearch.knn.index.engine.KNNEngine;
 import org.opensearch.knn.index.mapper.KNNVectorFieldMapper;
+import org.opensearch.knn.index.memory.NativeMemoryCacheRegistryManager;
 import org.opensearch.knn.index.quantizationservice.QuantizationService;
 import org.opensearch.knn.index.query.FilterIdsSelector;
 import org.opensearch.knn.index.query.KNNQueryResult;
@@ -64,6 +66,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.knn.common.KNNConstants.ADC_ENABLED_FAISS_INDEX_INTERNAL_PARAMETER;
@@ -107,6 +110,15 @@ public class FaissMemoryOptimizedSearcherTests extends KNNTestCase {
     private static final int TOTAL_NUM_DOCS_IN_SEGMENT = 300;
     private static final int TOP_K = 30;
     private static final float NO_FILTERING = Float.NaN;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
+    }
 
     public void test32xQuantizedBinaryIndexType() {
         final TestingSpec testingSpec = new TestingSpec(

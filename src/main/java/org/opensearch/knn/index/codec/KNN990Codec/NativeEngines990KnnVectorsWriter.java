@@ -23,6 +23,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.StopWatch;
@@ -39,6 +40,7 @@ import org.opensearch.knn.quantization.models.quantizationState.QuantizationStat
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -190,17 +192,26 @@ public class NativeEngines990KnnVectorsWriter extends KnnVectorsWriter {
      */
     @Override
     public void finish() throws IOException {
-        String registryFileName = IndexFileNames.segmentFileName(segmentWriteState.segmentInfo.name, "", KNNConstants.CACHE_MARKER);
-        try (IndexOutput output = segmentWriteState.directory.createOutput(registryFileName, segmentWriteState.context)) {
-            CodecUtil.writeIndexHeader(
-                output,
-                NATIVE_ENGINES_990_KNN_VECTORS_FORMAT_CACHE_DATA,
-                0,
-                segmentWriteState.segmentInfo.getId(),
-                segmentWriteState.segmentSuffix
-            );
-            CodecUtil.writeFooter(output);
+        String registryFileName = IndexFileNames.segmentFileName(
+            segmentWriteState.segmentInfo.name,
+            "",
+            KNNConstants.NATIVE_ENGINE_MEMORY_STATE_SUFFIX
+        );
+        try (Lock ignored = segmentWriteState.directory.obtainLock(registryFileName)) {
+            if (Arrays.stream(segmentWriteState.directory.listAll()).noneMatch(registryFileName::equals)) {
+                try (IndexOutput output = segmentWriteState.directory.createOutput(registryFileName, segmentWriteState.context)) {
+                    CodecUtil.writeIndexHeader(
+                        output,
+                        NATIVE_ENGINES_990_KNN_VECTORS_FORMAT_CACHE_DATA,
+                        0,
+                        segmentWriteState.segmentInfo.getId(),
+                        segmentWriteState.segmentSuffix
+                    );
+                    CodecUtil.writeFooter(output);
+                }
+            }
         }
+
         NativeEngineSegmentAttributeParser.writeIndexName(mapperService, segmentWriteState.segmentInfo);
         if (finished) {
             throw new IllegalStateException("NativeEnginesKNNVectorsWriter is already finished");

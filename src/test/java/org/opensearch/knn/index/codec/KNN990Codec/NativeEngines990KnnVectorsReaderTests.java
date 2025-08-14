@@ -14,10 +14,12 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.junit.Before;
 import org.mockito.MockedStatic;
 import org.opensearch.knn.KNNTestCase;
 import org.opensearch.knn.index.codec.KNNCodecTestUtil;
 import org.opensearch.knn.index.engine.KNNEngine;
+import org.opensearch.knn.index.memory.NativeMemoryCacheRegistryManager;
 import org.opensearch.knn.memoryoptsearch.VectorSearcher;
 import org.opensearch.knn.memoryoptsearch.VectorSearcherFactory;
 
@@ -36,6 +38,16 @@ import static org.opensearch.knn.common.KNNConstants.KNN_ENGINE;
 import static org.opensearch.knn.index.mapper.KNNVectorFieldMapper.KNN_FIELD;
 
 public class NativeEngines990KnnVectorsReaderTests extends KNNTestCase {
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
+    }
+
     @SneakyThrows
     public void testWhenMemoryOptimizedSearchIsEnabled_emptyCase() {
         // Prepare field infos

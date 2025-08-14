@@ -16,6 +16,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.junit.Before;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.knn.KNNTestCase;
 import org.opensearch.knn.TestUtils;
@@ -28,12 +29,22 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doReturn;
 
 public class NativeMemoryEntryContextTests extends KNNTestCase {
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        NativeMemoryCacheRegistryManager nativeMemoryCacheRegistryManager = mock(NativeMemoryCacheRegistryManager.class);
+        NativeMemoryCacheRegistryManager.setInstance(nativeMemoryCacheRegistryManager);
+        when(nativeMemoryCacheRegistryManager.containsFileSegmentRegistry(any(), any())).thenReturn(false);
+    }
 
     public void testAbstract_getKey() {
         String key = "test-1";
@@ -46,6 +57,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
         NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy = mock(NativeMemoryLoadStrategy.IndexLoadStrategy.class);
         NativeMemoryEntryContext.IndexEntryContext indexEntryContext = spy(
             new NativeMemoryEntryContext.IndexEntryContext(
+                null,
                 (Directory) null,
                 TestUtils.createFakeNativeMamoryCacheKey("test"),
                 indexLoadStrategy,
@@ -55,6 +67,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
         );
 
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             null,
             0,
             10,
@@ -73,6 +86,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
     public void testIndexEntryContext_load_with_unopened_graphFile() throws IOException {
         NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy = mock(NativeMemoryLoadStrategy.IndexLoadStrategy.class);
         NativeMemoryEntryContext.IndexEntryContext indexEntryContext = new NativeMemoryEntryContext.IndexEntryContext(
+            null,
             (Directory) null,
             TestUtils.createFakeNativeMamoryCacheKey("test"),
             indexLoadStrategy,
@@ -81,6 +95,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
         );
 
         NativeMemoryAllocation.IndexAllocation indexAllocation = new NativeMemoryAllocation.IndexAllocation(
+            null,
             null,
             0,
             10,
@@ -110,6 +125,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
 
         // Check that the indexEntryContext will return the same thing
         NativeMemoryEntryContext.IndexEntryContext indexEntryContext = new NativeMemoryEntryContext.IndexEntryContext(
+            null,
             directory,
             TestUtils.createFakeNativeMamoryCacheKey(indexFileName),
             null,
@@ -123,6 +139,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
     public void testIndexEntryContext_getOpenSearchIndexName() {
         String openSearchIndexName = "test-index";
         NativeMemoryEntryContext.IndexEntryContext indexEntryContext = new NativeMemoryEntryContext.IndexEntryContext(
+            null,
             (Directory) null,
             TestUtils.createFakeNativeMamoryCacheKey("test"),
             null,
@@ -136,6 +153,7 @@ public class NativeMemoryEntryContextTests extends KNNTestCase {
     public void testIndexEntryContext_getParameters() {
         Map<String, Object> parameters = ImmutableMap.of("test-1", 10);
         NativeMemoryEntryContext.IndexEntryContext indexEntryContext = new NativeMemoryEntryContext.IndexEntryContext(
+            null,
             (Directory) null,
             TestUtils.createFakeNativeMamoryCacheKey("test"),
             null,
