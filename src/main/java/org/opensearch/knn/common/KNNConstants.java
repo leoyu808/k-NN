@@ -191,4 +191,5 @@ public class KNNConstants {
     public static final String NATIVE_ENGINE_MEMORY_STATE_SUFFIX = "knnmstate";
     public static final String TEMP_FILE_SUFFIX = "tmp";
     public static final String BACKUP_FILE_SUFFIX = "bak";
+    public static final String LOCK_FILE_SUFFIX = "lck";
 }
